@@ -1,0 +1,6 @@
+{
+  "name": "المتصفح",
+  "description": "متصفح إنترنت عربي متطور ذو أداء عالٍ، يدعم الواجهات المرنة RTL والتبويبات المتعددة والمفضلة والسجل المحلي.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
