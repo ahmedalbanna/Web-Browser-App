@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -108,6 +110,7 @@ fun WebBrowserScreen(
     var showVpnSheet by remember { mutableStateOf(false) }
     var showAdBlockerSheet by remember { mutableStateOf(false) }
     var showDownloadsSheet by remember { mutableStateOf(false) }
+    var showTranslationSheet by remember { mutableStateOf(false) }
 
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -450,6 +453,24 @@ fun WebBrowserScreen(
                                 tint = if (isBookmarked) currentAccent else currentSecText
                             )
                         }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        // Translate quick toggle button
+                        IconButton(
+                            onClick = { showTranslationSheet = true },
+                            modifier = Modifier
+                                .testTag("translation_toggle_button")
+                                .size(44.dp)
+                                .background(currentLightElement, CircleShape)
+                                .border(1.dp, currentBorder, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Translate,
+                                contentDescription = "المترجم الذكي والترجمة الفورية",
+                                tint = currentSecText
+                            )
+                        }
                     }
 
                     // Seamless dynamic linear web loader line
@@ -780,6 +801,27 @@ fun WebBrowserScreen(
                 onCancelDownload = { id -> viewModel.cancelDownload(id) },
                 onDeleteDownload = { item -> viewModel.deleteDownload(item) },
                 onClearAllDownloads = { viewModel.clearAllDownloads() }
+            )
+        }
+    }
+
+    // Modal Bottom sheet for Translation configuration
+    if (showTranslationSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showTranslationSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = currentMatte,
+            tonalElevation = 16.dp,
+        ) {
+            TranslationPanel(
+                viewModel = viewModel,
+                isIncognito = isIncognito,
+                currentLightElement = currentLightElement,
+                currentAccent = currentAccent,
+                currentText = currentText,
+                currentSecText = currentSecText,
+                currentBorder = currentBorder,
+                onDismiss = { showTranslationSheet = false }
             )
         }
     }
@@ -2249,3 +2291,458 @@ private fun formatBytes(bytes: Long): String {
     if (digitGroups >= units.size) return "$bytes B"
     return String.format(java.util.Locale.US, "%.1f %s", bytes / Math.pow(1024.0, digitGroups.toDouble()), units[digitGroups])
 }
+
+@Composable
+fun TranslationPanel(
+    viewModel: WebBrowserViewModel,
+    isIncognito: Boolean,
+    currentLightElement: Color,
+    currentAccent: Color,
+    currentText: Color,
+    currentSecText: Color,
+    currentBorder: Color,
+    onDismiss: () -> Unit
+) {
+    var rawText by remember { mutableStateOf("") }
+    var sourceLang by remember { mutableStateOf("Auto") }
+    var targetLang by remember { mutableStateOf("Arabic") }
+
+    val isTranslating by viewModel.isTranslating.collectAsState()
+    val translatedResult by viewModel.translatedResult.collectAsState()
+    val translationError by viewModel.translationError.collectAsState()
+
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val clipboardManager = androidx.compose.ui.platform.LocalClipboardManager.current
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.85f)
+            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        // Handle bar in bottom sheet
+        Box(
+            modifier = Modifier
+                .width(40.dp)
+                .height(4.dp)
+                .background(currentSecText.copy(alpha = 0.3f), RoundedCornerShape(2.dp))
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Title and Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Start
+        ) {
+            Icon(
+                imageVector = Icons.Default.Translate,
+                contentDescription = null,
+                tint = currentAccent,
+                modifier = Modifier.size(28.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+                Text(
+                    text = "مساعد الترجمة الذكي",
+                    color = currentText,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "ترجمة المواقع والنصوص الفورية بدعم من الذكاء الاصطناعي",
+                    color = currentSecText,
+                    fontSize = 11.5.sp
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Section 1: Page Translation Box
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = currentLightElement),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, currentBorder)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Language,
+                        contentDescription = null,
+                        tint = currentAccent,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "ترجمة صفحة الويب الحالية للعربية",
+                        color = currentText,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "سيتم تحويل الموقع المعروض حالياً بالكامل ليعمل باللغة العربية مع دعم تدوير النصوص التفاعلية RTL تلقائياً وبسهولة.",
+                    color = currentSecText,
+                    fontSize = 11.5.sp,
+                    lineHeight = 16.sp
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = {
+                        viewModel.translateActiveWebPage()
+                        onDismiss()
+                        android.widget.Toast.makeText(context, "جاري بدء ترجمة موقع الويب...", android.widget.Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
+                        .testTag("translate_page_button"),
+                    colors = ButtonDefaults.buttonColors(containerColor = currentAccent),
+                    shape = RoundedCornerShape(22.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.GTranslate,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "ترجمة الموقع الحالي كاملاً",
+                        color = if (isIncognito) Color.Black else Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Divider
+        HorizontalDivider(color = currentBorder, thickness = 1.dp)
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Section 2: Text Translation Box
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.Start
+        ) {
+            Text(
+                text = "الترجمة الفورية للنصوص",
+                color = currentText,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Selection Quick Chips
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                val config1 = "كشف تلقائي ➔ العربية"
+                val config2 = "الإنجليزية ➔ العربية"
+                val config3 = "العربية ➔ الإنجليزية"
+
+                // Chip 1
+                val isSelected1 = sourceLang == "Auto" && targetLang == "Arabic"
+                FilterChip(
+                    selected = isSelected1,
+                    onClick = {
+                        sourceLang = "Auto"
+                        targetLang = "Arabic"
+                    },
+                    label = { Text(config1, fontSize = 10.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = currentAccent.copy(alpha = 0.15f),
+                        selectedLabelColor = currentAccent
+                    )
+                )
+
+                // Chip 2
+                val isSelected2 = sourceLang == "English" && targetLang == "Arabic"
+                FilterChip(
+                    selected = isSelected2,
+                    onClick = {
+                        sourceLang = "English"
+                        targetLang = "Arabic"
+                    },
+                    label = { Text(config2, fontSize = 10.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = currentAccent.copy(alpha = 0.15f),
+                        selectedLabelColor = currentAccent
+                    )
+                )
+
+                // Chip 3
+                val isSelected3 = sourceLang == "Arabic" && targetLang == "English"
+                FilterChip(
+                    selected = isSelected3,
+                    onClick = {
+                        sourceLang = "Arabic"
+                        targetLang = "English"
+                    },
+                    label = { Text(config3, fontSize = 10.sp) },
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = currentAccent.copy(alpha = 0.15f),
+                        selectedLabelColor = currentAccent
+                    )
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // Multi-line Input Box
+            OutlinedTextField(
+                value = rawText,
+                onValueChange = { rawText = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(110.dp)
+                    .testTag("translate_text_input"),
+                placeholder = {
+                    Text(
+                        text = "اكتب أو الصق النص هنا للترجمة...",
+                        fontSize = 12.5.sp,
+                        color = currentSecText
+                    )
+                },
+                textStyle = LocalTextStyle.current.copy(
+                    fontSize = 13.sp,
+                    color = currentText
+                ),
+                maxLines = 5,
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = currentAccent,
+                    unfocusedBorderColor = currentBorder,
+                    focusedLabelColor = currentAccent,
+                    cursorColor = currentAccent
+                ),
+                trailingIcon = {
+                    Column(
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(end = 4.dp)
+                    ) {
+                        if (rawText.isNotEmpty()) {
+                            IconButton(
+                                onClick = {
+                                    rawText = ""
+                                    viewModel.clearTranslation()
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Clear,
+                                    contentDescription = "مسح",
+                                    tint = currentSecText,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+                        IconButton(
+                            onClick = {
+                                val clipText = clipboardManager.getText()?.text ?: ""
+                                if (clipText.isNotEmpty()) {
+                                    rawText = clipText
+                                }
+                            },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ContentPaste,
+                                contentDescription = "لصق الحافظة",
+                                tint = currentAccent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Translate Text Action Button
+            Button(
+                onClick = {
+                    viewModel.translateText(rawText, sourceLang, targetLang)
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp)
+                    .testTag("translate_text_submit_button"),
+                enabled = rawText.isNotBlank() && !isTranslating,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = currentAccent,
+                    disabledContainerColor = currentLightElement
+                ),
+                shape = RoundedCornerShape(22.dp)
+            ) {
+                if (isTranslating) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = if (isIncognito) Color.Black else Color.White
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "جاري الترجمة بذكاء Gemini...",
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.AutoAwesome,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "ترجمة النص الآن ✨",
+                        color = if (isIncognito) Color.Black else Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            // Results UI Display
+            if (isTranslating) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = currentLightElement.copy(alpha = 0.5f))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "جاري التواصل مع خادم الترجمة فائق السرعة...",
+                            color = currentSecText,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+
+            if (translatedResult.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (isIncognito) currentLightElement else Color(0xFFEBF3FC)
+                    ),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(
+                        width = 1.dp,
+                        color = if (isIncognito) currentBorder else currentAccent.copy(alpha = 0.3f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "النص المترجم:",
+                                color = currentAccent,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            // Quick Copy Button
+                            IconButton(
+                                onClick = {
+                                    clipboardManager.setText(androidx.compose.ui.text.AnnotatedString(translatedResult))
+                                    android.widget.Toast.makeText(context, "تم نسخ الترجمة للحافظة 📋", android.widget.Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.ContentCopy,
+                                    contentDescription = "نسخ النص",
+                                    tint = currentAccent,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        // Output text supporting vertical alignment
+                        Text(
+                            text = translatedResult,
+                            color = currentText,
+                            fontSize = 13.5.sp,
+                            lineHeight = 19.sp,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+
+            if (translationError != null) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFDE8E8)),
+                    shape = RoundedCornerShape(12.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFF8B4B4))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ErrorOutline,
+                            contentDescription = "خطأ",
+                            tint = Color.Red,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = translationError!!,
+                            color = Color(0xFFC81E1E),
+                            fontSize = 11.5.sp,
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+

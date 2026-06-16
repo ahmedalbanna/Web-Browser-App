@@ -126,6 +126,18 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    // AI Translation States
+    private val translateService = GeminiTranslateService()
+
+    private val _isTranslating = MutableStateFlow(false)
+    val isTranslating: StateFlow<Boolean> = _isTranslating.asStateFlow()
+
+    private val _translatedResult = MutableStateFlow("")
+    val translatedResult: StateFlow<String> = _translatedResult.asStateFlow()
+
+    private val _translationError = MutableStateFlow<String?>(null)
+    val translationError: StateFlow<String?> = _translationError.asStateFlow()
+
     fun setUrlInput(url: String) {
         _urlInput.value = url
     }
@@ -547,5 +559,57 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         stopVpnSimulation()
         activeDownloadJobs.forEach { (_, job) -> job.cancel() }
         activeDownloadJobs.clear()
+    }
+
+    // Translate User Custom Text via Gemini
+    fun translateText(text: String, sourceLang: String, targetLang: String) {
+        if (text.isBlank()) return
+        viewModelScope.launch {
+            _isTranslating.value = true
+            _translationError.value = null
+            _translatedResult.value = ""
+            try {
+                val res = translateService.translateText(text, sourceLang, targetLang)
+                if (res == "Error_No_Key") {
+                    _translationError.value = "يرجى تهيئة مفتاح API الخاص بـ Gemini في لوحة الأسرار (Secrets) باسم GEMINI_API_KEY لتفعيل الترجمة الذكية."
+                } else if (res.startsWith("فشل") || res.startsWith("خطأ") || res.contains("Network") || res.contains("Error")) {
+                    _translationError.value = res
+                } else {
+                    _translatedResult.value = res
+                }
+            } catch (e: Exception) {
+                _translationError.value = "حدث خطأ أثناء الاتصال: ${e.localizedMessage}"
+            } finally {
+                _isTranslating.value = false
+            }
+        }
+    }
+
+    fun clearTranslation() {
+        _translatedResult.value = ""
+        _translationError.value = null
+    }
+
+    // Translate entire web page to Arabic on google translate proxies
+    fun translateActiveWebPage() {
+        val activeId = _activeTabId.value
+        val activeTab = _tabs.value.find { it.id == activeId }
+        val currentUrl = activeTab?.url ?: ""
+        if (currentUrl.isNotEmpty() && currentUrl.startsWith("http")) {
+            if (currentUrl.contains("translate.google.com/translate")) {
+                return // avoid dual loop
+            }
+            val encodedUrl = try {
+                java.net.URLEncoder.encode(currentUrl, "UTF-8")
+            } catch (e: Exception) {
+                currentUrl
+            }
+            val translatedUrl = "https://translate.google.com/translate?sl=auto&tl=ar&u=$encodedUrl"
+            updateActiveTabUrl(translatedUrl)
+            _urlInput.value = translatedUrl
+            viewModelScope.launch {
+                _commands.emit(BrowserCommand.LoadUrl(translatedUrl))
+            }
+        }
     }
 }
