@@ -33,6 +33,15 @@ data class DownloadItem(
     val mimeType: String = ""
 )
 
+@Entity(tableName = "saved_pages")
+data class SavedPage(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val title: String,
+    val url: String,
+    val filePath: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
 data class ExtractedVideo(
     val url: String,
     val title: String

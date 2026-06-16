@@ -51,4 +51,17 @@ interface BrowserDao {
 
     @Query("DELETE FROM downloads")
     suspend fun clearAllDownloads()
+
+    // Saved Pages Operations
+    @Query("SELECT * FROM saved_pages ORDER BY timestamp DESC")
+    fun getAllSavedPages(): Flow<List<SavedPage>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertSavedPage(page: SavedPage)
+
+    @Delete
+    suspend fun deleteSavedPage(page: SavedPage)
+
+    @Query("DELETE FROM saved_pages")
+    suspend fun clearAllSavedPages()
 }

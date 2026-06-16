@@ -8,4 +8,5 @@ sealed class BrowserCommand {
     data class LoadUrl(val url: String) : BrowserCommand()
     object ExtractImages : BrowserCommand()
     object ExtractVideos : BrowserCommand()
+    data class SavePage(val title: String, val url: String) : BrowserCommand()
 }

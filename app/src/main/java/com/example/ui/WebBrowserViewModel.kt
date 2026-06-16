@@ -198,6 +198,61 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         _isExtractingVideos.value = false
     }
 
+    // Saved Pages state and interactions
+    val allSavedPages: StateFlow<List<com.example.data.SavedPage>> = repository.allSavedPages
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    fun triggerSavePage() {
+        val activeId = _activeTabId.value
+        val activeTab = _tabs.value.find { it.id == activeId }
+        val title = activeTab?.title?.ifEmpty { activeTab.url } ?: "صفحة غير معروفة"
+        val url = activeTab?.url ?: ""
+        if (url.isNotEmpty() && !url.startsWith("about:blank")) {
+            viewModelScope.launch {
+                _commands.emit(BrowserCommand.SavePage(title, url))
+            }
+        }
+    }
+
+    fun onPageSavedSuccessfully(title: String, url: String, filePath: String) {
+        viewModelScope.launch {
+            repository.addSavedPage(title, url, filePath)
+        }
+    }
+
+    fun deleteSavedPage(page: com.example.data.SavedPage) {
+        viewModelScope.launch {
+            try {
+                val file = java.io.File(page.filePath)
+                if (file.exists()) {
+                    file.delete()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            repository.removeSavedPage(page)
+        }
+    }
+
+    fun clearSavedPages() {
+        viewModelScope.launch {
+            try {
+                val context = getApplication<Application>().applicationContext
+                val savedPagesDir = java.io.File(context.filesDir, "saved_pages")
+                if (savedPagesDir.exists()) {
+                    savedPagesDir.deleteRecursively()
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            repository.clearAllSavedPages()
+        }
+    }
+
     fun setUrlInput(url: String) {
         _urlInput.value = url
     }

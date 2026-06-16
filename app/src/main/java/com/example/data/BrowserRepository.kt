@@ -59,4 +59,19 @@ class BrowserRepository(private val browserDao: BrowserDao) {
     suspend fun clearAllDownloads() {
         browserDao.clearAllDownloads()
     }
+
+    // Saved Pages API
+    val allSavedPages: Flow<List<SavedPage>> = browserDao.getAllSavedPages()
+
+    suspend fun addSavedPage(title: String, url: String, filePath: String) {
+        browserDao.insertSavedPage(SavedPage(title = title.ifEmpty { url }, url = url, filePath = filePath))
+    }
+
+    suspend fun removeSavedPage(page: SavedPage) {
+        browserDao.deleteSavedPage(page)
+    }
+
+    suspend fun clearAllSavedPages() {
+        browserDao.clearAllSavedPages()
+    }
 }

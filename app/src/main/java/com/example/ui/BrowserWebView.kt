@@ -98,6 +98,29 @@ fun BrowserWebView(
                     """.trimIndent()
                     webViewInstance?.evaluateJavascript(js, null)
                 }
+                is BrowserCommand.SavePage -> {
+                    webViewInstance?.let { webView ->
+                        val context = webView.context
+                        val savedPagesDir = java.io.File(context.filesDir, "saved_pages")
+                        if (!savedPagesDir.exists()) {
+                            savedPagesDir.mkdirs()
+                        }
+                        val fileName = "page_${System.currentTimeMillis()}.mhtml"
+                        val destFile = java.io.File(savedPagesDir, fileName)
+                        webView.saveWebArchive(destFile.absolutePath, false) { savedPath ->
+                            if (savedPath != null) {
+                                viewModel.onPageSavedSuccessfully(
+                                    title = command.title,
+                                    url = command.url,
+                                    filePath = savedPath
+                                )
+                                android.widget.Toast.makeText(context, "تم حفظ الصفحة بنجاح للقراءة دون إنترنت", android.widget.Toast.LENGTH_SHORT).show()
+                            } else {
+                                android.widget.Toast.makeText(context, "فشل حفظ الصفحة", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
+                }
             }
         }
     }
