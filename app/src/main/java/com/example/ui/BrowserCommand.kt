@@ -6,4 +6,5 @@ sealed class BrowserCommand {
     object Reload : BrowserCommand()
     object StopLoading : BrowserCommand()
     data class LoadUrl(val url: String) : BrowserCommand()
+    object ExtractImages : BrowserCommand()
 }

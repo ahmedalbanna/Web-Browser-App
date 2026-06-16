@@ -138,6 +138,36 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
     private val _translationError = MutableStateFlow<String?>(null)
     val translationError: StateFlow<String?> = _translationError.asStateFlow()
 
+    // Image Browser / Extractor states
+    private val _extractedImages = MutableStateFlow<List<String>>(emptyList())
+    val extractedImages: StateFlow<List<String>> = _extractedImages.asStateFlow()
+
+    private val _isExtractingImages = MutableStateFlow(false)
+    val isExtractingImages: StateFlow<Boolean> = _isExtractingImages.asStateFlow()
+
+    fun triggerImageExtraction() {
+        viewModelScope.launch {
+            _isExtractingImages.value = true
+            _extractedImages.value = emptyList()
+            _commands.emit(BrowserCommand.ExtractImages)
+            // Safety timeout after 5 seconds to not get stuck endlessly in loading state if no callback triggers
+            kotlinx.coroutines.delay(5000)
+            if (_isExtractingImages.value) {
+                _isExtractingImages.value = false
+            }
+        }
+    }
+
+    fun setExtractedImages(urls: List<String>) {
+        _extractedImages.value = urls
+        _isExtractingImages.value = false
+    }
+
+    fun clearExtractedImages() {
+        _extractedImages.value = emptyList()
+        _isExtractingImages.value = false
+    }
+
     fun setUrlInput(url: String) {
         _urlInput.value = url
     }

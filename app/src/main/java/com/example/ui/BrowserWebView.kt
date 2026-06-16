@@ -52,6 +52,22 @@ fun BrowserWebView(
                         webViewInstance?.loadUrl(command.url)
                     }
                 }
+                is BrowserCommand.ExtractImages -> {
+                    val js = """
+                        (function() {
+                            var imgs = document.getElementsByTagName('img');
+                            var urls = [];
+                            for (var i = 0; i < imgs.length; i++) {
+                                var src = imgs[i].src || imgs[i].getAttribute('data-src') || imgs[i].getAttribute('data-lazy-src') || imgs[i].getAttribute('lazy-src');
+                                if (src && src.trim().length > 0) {
+                                    urls.push(src);
+                                }
+                            }
+                            AndroidImageExtractor.onImagesFound(JSON.stringify(urls));
+                        })()
+                    """.trimIndent()
+                    webViewInstance?.evaluateJavascript(js, null)
+                }
             }
         }
     }
@@ -69,6 +85,25 @@ fun BrowserWebView(
                     setBuiltInZoomControls(true)
                     setDisplayZoomControls(false)
                 }
+
+                addJavascriptInterface(object {
+                    @android.webkit.JavascriptInterface
+                    fun onImagesFound(urlsJson: String) {
+                        try {
+                            val jsonArray = org.json.JSONArray(urlsJson)
+                            val urls = mutableListOf<String>()
+                            for (i in 0 until jsonArray.length()) {
+                                val url = jsonArray.getString(i)
+                                if (url.startsWith("http") || url.startsWith("data:image")) {
+                                    urls.add(url)
+                                }
+                            }
+                            viewModel.setExtractedImages(urls)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }, "AndroidImageExtractor")
 
                 setDownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->
                     viewModel.startDownload(url, contentDisposition, mimetype, contentLength)
