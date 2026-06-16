@@ -32,3 +32,8 @@ data class DownloadItem(
     val speed: String = "0 KB/s",
     val mimeType: String = ""
 )
+
+data class ExtractedVideo(
+    val url: String,
+    val title: String
+)

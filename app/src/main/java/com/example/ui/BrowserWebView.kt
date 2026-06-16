@@ -68,6 +68,36 @@ fun BrowserWebView(
                     """.trimIndent()
                     webViewInstance?.evaluateJavascript(js, null)
                 }
+                is BrowserCommand.ExtractVideos -> {
+                    val js = """
+                        (function() {
+                            var videos = document.getElementsByTagName('video');
+                            var urls = [];
+                            for (var i = 0; i < videos.length; i++) {
+                                var src = videos[i].src;
+                                if (src && src.trim().length > 0) {
+                                    urls.push({src: src, title: videos[i].title || 'فيديو صفحة الويب'});
+                                }
+                                var sources = videos[i].getElementsByTagName('source');
+                                for (var j = 0; j < sources.length; j++) {
+                                    var sSrc = sources[j].src;
+                                    if (sSrc && sSrc.trim().length > 0) {
+                                        urls.push({src: sSrc, title: videos[i].title || 'فيديو صفحة الويب'});
+                                    }
+                                }
+                            }
+                            var iframes = document.getElementsByTagName('iframe');
+                            for (var i = 0; i < iframes.length; i++) {
+                                var src = iframes[i].src;
+                                if (src && (src.includes('youtube.com/embed/') || src.includes('youtu.be/') || src.includes('vimeo.com/video/'))) {
+                                    urls.push({src: src, title: 'فيديو يوتيوب أو ميديا مدمجة'});
+                                }
+                            }
+                            AndroidVideoExtractor.onVideosFound(JSON.stringify(urls));
+                        })()
+                    """.trimIndent()
+                    webViewInstance?.evaluateJavascript(js, null)
+                }
             }
         }
     }
@@ -104,6 +134,27 @@ fun BrowserWebView(
                         }
                     }
                 }, "AndroidImageExtractor")
+
+                addJavascriptInterface(object {
+                    @android.webkit.JavascriptInterface
+                    fun onVideosFound(videosJson: String) {
+                        try {
+                            val jsonArray = org.json.JSONArray(videosJson)
+                            val videos = mutableListOf<com.example.data.ExtractedVideo>()
+                            for (i in 0 until jsonArray.length()) {
+                                val obj = jsonArray.getJSONObject(i)
+                                val src = obj.getString("src")
+                                val title = obj.optString("title", "فيديو صفحة الويب")
+                                if (src.startsWith("http") || src.contains("youtube.com") || src.contains("youtu.be")) {
+                                    videos.add(com.example.data.ExtractedVideo(src, title))
+                                }
+                            }
+                            viewModel.setExtractedVideos(videos)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                }, "AndroidVideoExtractor")
 
                 setDownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->
                     viewModel.startDownload(url, contentDisposition, mimetype, contentLength)

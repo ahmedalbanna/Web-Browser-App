@@ -168,6 +168,36 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         _isExtractingImages.value = false
     }
 
+    // Video Browser / Extractor states
+    private val _extractedVideos = MutableStateFlow<List<com.example.data.ExtractedVideo>>(emptyList())
+    val extractedVideos: StateFlow<List<com.example.data.ExtractedVideo>> = _extractedVideos.asStateFlow()
+
+    private val _isExtractingVideos = MutableStateFlow(false)
+    val isExtractingVideos: StateFlow<Boolean> = _isExtractingVideos.asStateFlow()
+
+    fun triggerVideoExtraction() {
+        viewModelScope.launch {
+            _isExtractingVideos.value = true
+            _extractedVideos.value = emptyList()
+            _commands.emit(BrowserCommand.ExtractVideos)
+            // Safety timeout after 5 seconds to not get stuck endlessly in loading state if no callback triggers
+            kotlinx.coroutines.delay(5000)
+            if (_isExtractingVideos.value) {
+                _isExtractingVideos.value = false
+            }
+        }
+    }
+
+    fun setExtractedVideos(videos: List<com.example.data.ExtractedVideo>) {
+        _extractedVideos.value = videos
+        _isExtractingVideos.value = false
+    }
+
+    fun clearExtractedVideos() {
+        _extractedVideos.value = emptyList()
+        _isExtractingVideos.value = false
+    }
+
     fun setUrlInput(url: String) {
         _urlInput.value = url
     }
