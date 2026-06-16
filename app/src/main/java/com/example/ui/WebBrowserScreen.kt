@@ -42,7 +42,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// premium Frosted Glass Light Theme Color Token Palette
+// --- Color Tokens for Light Frosted Glass Theme ---
 val GlassBg = Color(0xFFF3F4F9) // Light blue-gray canvas background
 val FrostWhite = Color(0xD8FFFFFF) // 85% opacity White glass material
 val MatteWhite = Color(0xF2FFFFFF) // More opaque white for overlays
@@ -53,11 +53,24 @@ val ShadowBorder = Color(0xFFDDE2F0) // Refined delicate border line
 val BorderHighlight = Color(0xFFB0C4DE) // Stronger line for active markers
 val AccentBlue = Color(0xFF005AC1) // Material Blue primary active indicator
 
-// Tab specific accent system
 val TabActiveBg = Color(0xFFD3E3FD) // Light blue color for the selected tab
 val TabActiveText = Color(0xFF001D35) // Deep contrast active blue text
 val TabActiveBorder = Color(0xFFA8C7FA)
 val SecureGreen = Color(0xFF10B981) // Secure Green SSL line
+
+// --- Color Tokens for Incognito Stealth Glass Theme (Private) ---
+val IncognitoBg = Color(0xFF0D0E12) // Mysterious deep slate black background
+val IncognitoFrost = Color(0xD81A1C24) // 85% opacity dark obsidian glass
+val IncognitoMatte = Color(0xF214161F) // Deep rich dark sheet background
+val IncognitoLightElement = Color(0xFF232631) // Deep selection capsule or input field
+val IncognitoText = Color(0xFFE3E4E9) // Cool white accent text
+val IncognitoSecText = Color(0xFF8A8F9E) // Soft muted slate description text
+val IncognitoBorder = Color(0xFF282D3D) // Hairline borders for stealth looks
+val IncognitoAccent = Color(0xFFFF9E2C) // Glowing active amber spy color
+
+val IncognitoTabActiveBg = Color(0xFF323646) // Stealth selected tab pill
+val IncognitoTabActiveText = Color(0xFFFFFFFF) // Contrasting white tab label
+val IncognitoTabActiveBorder = Color(0xFF42485E)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -77,6 +90,7 @@ fun WebBrowserScreen(
 
     val bookmarks by viewModel.bookmarks.collectAsState()
     val history by viewModel.history.collectAsState()
+    val isIncognito by viewModel.isIncognito.collectAsState()
 
     var showHistoryAndBookmarksSheet by remember { mutableStateOf(false) }
     var showTabsListSheet by remember { mutableStateOf(false) }
@@ -89,13 +103,23 @@ fun WebBrowserScreen(
         addressText = urlInput
     }
 
+    // Dynamic Style selection based on Incognito state
+    val currentBg = if (isIncognito) IncognitoBg else GlassBg
+    val currentFrost = if (isIncognito) IncognitoFrost else FrostWhite
+    val currentMatte = if (isIncognito) IncognitoMatte else MatteWhite
+    val currentLightElement = if (isIncognito) IncognitoLightElement else LightElement
+    val currentText = if (isIncognito) IncognitoText else DarkText
+    val currentSecText = if (isIncognito) IncognitoSecText else SecondaryText
+    val currentBorder = if (isIncognito) IncognitoBorder else ShadowBorder
+    val currentAccent = if (isIncognito) IncognitoAccent else AccentBlue
+
     Scaffold(
         modifier = modifier
             .fillMaxSize()
-            .background(GlassBg),
+            .background(currentBg),
         topBar = {
             Column(
-                modifier = Modifier.background(FrostWhite)
+                modifier = Modifier.background(currentFrost)
             ) {
                 // Top Tab row switcher with high-fidelity frosted glass feel
                 Row(
@@ -105,22 +129,48 @@ fun WebBrowserScreen(
                         .padding(vertical = 6.dp, horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    // New Tab Action Button
                     IconButton(
                         onClick = { viewModel.createNewTab() },
                         modifier = Modifier
                             .testTag("add_tab_button")
                             .size(38.dp)
-                            .background(Color.White, CircleShape)
-                            .border(1.dp, ShadowBorder, CircleShape)
+                            .background(if (isIncognito) currentLightElement else Color.White, CircleShape)
+                            .border(1.dp, currentBorder, CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Add,
                             contentDescription = "علامة تبويب جديدة",
-                            tint = AccentBlue
+                            tint = currentAccent
                         )
                     }
 
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    // Premium Stealth Incognito Switcher
+                    IconButton(
+                        onClick = { viewModel.toggleIncognito() },
+                        modifier = Modifier
+                            .testTag("incognito_toggle_button")
+                            .size(38.dp)
+                            .background(
+                                color = if (isIncognito) currentAccent.copy(alpha = 0.2f) else currentLightElement,
+                                shape = CircleShape
+                            )
+                            .border(
+                                width = 1.dp,
+                                color = if (isIncognito) currentAccent else currentBorder,
+                                shape = CircleShape
+                            )
+                    ) {
+                        Icon(
+                            imageVector = if (isIncognito) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                            contentDescription = "تبديل الوضع المتخفي",
+                            tint = if (isIncognito) currentAccent else currentSecText
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
 
                     LazyRow(
                         modifier = Modifier.weight(1f),
@@ -131,10 +181,20 @@ fun WebBrowserScreen(
                             Row(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(32.dp))
-                                    .background(if (isActive) TabActiveBg else Color.White.copy(alpha = 0.5f))
+                                    .background(
+                                        if (isActive) {
+                                            if (isIncognito) IncognitoTabActiveBg else TabActiveBg
+                                        } else {
+                                            if (isIncognito) Color.White.copy(alpha = 0.05f) else Color.White.copy(alpha = 0.5f)
+                                        }
+                                    )
                                     .border(
                                         width = 1.dp,
-                                        color = if (isActive) TabActiveBorder else ShadowBorder,
+                                        color = if (isActive) {
+                                            if (isIncognito) IncognitoTabActiveBorder else TabActiveBorder
+                                        } else {
+                                            currentBorder
+                                        },
                                         shape = RoundedCornerShape(32.dp)
                                     )
                                     .clickable { viewModel.switchTab(tab.id) }
@@ -144,13 +204,17 @@ fun WebBrowserScreen(
                                 Icon(
                                     imageVector = if (tab.url.startsWith("https://")) Icons.Default.Lock else Icons.Default.Public,
                                     contentDescription = null,
-                                    tint = if (isActive) AccentBlue else SecondaryText,
+                                    tint = if (isActive) currentAccent else currentSecText,
                                     modifier = Modifier.size(13.dp)
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = tab.title,
-                                    color = if (isActive) TabActiveText else DarkText,
+                                    color = if (isActive) {
+                                        if (isIncognito) IncognitoTabActiveText else TabActiveText
+                                    } else {
+                                        currentText
+                                    },
                                     fontSize = 12.sp,
                                     fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
                                     maxLines = 1,
@@ -161,7 +225,11 @@ fun WebBrowserScreen(
                                 Icon(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "إغلاق التبويب",
-                                    tint = if (isActive) TabActiveText.copy(alpha = 0.7f) else SecondaryText.copy(alpha = 0.6f),
+                                    tint = if (isActive) {
+                                        if (isIncognito) IncognitoTabActiveText.copy(alpha = 0.7f) else TabActiveText.copy(alpha = 0.7f)
+                                    } else {
+                                        currentSecText.copy(alpha = 0.6f)
+                                    },
                                     modifier = Modifier
                                         .size(13.dp)
                                         .clickable { viewModel.closeTab(tab.id) }
@@ -175,7 +243,7 @@ fun WebBrowserScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .border(width = (0.5).dp, color = ShadowBorder)
+                        .border(width = (0.5).dp, color = currentBorder)
                 ) {
                     Row(
                         modifier = Modifier
@@ -187,8 +255,8 @@ fun WebBrowserScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(48.dp)
-                                .background(LightElement, RoundedCornerShape(24.dp))
-                                .border(1.dp, ShadowBorder.copy(alpha = 0.8f), RoundedCornerShape(24.dp))
+                                .background(currentLightElement, RoundedCornerShape(24.dp))
+                                .border(1.dp, currentBorder.copy(alpha = 0.8f), RoundedCornerShape(24.dp))
                                 .padding(horizontal = 12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -206,7 +274,7 @@ fun WebBrowserScreen(
                                 placeholder = {
                                     Text(
                                         "ابحث أو اكتب عنوان موقع ويب...",
-                                        color = SecondaryText,
+                                        color = currentSecText,
                                         fontSize = 13.sp,
                                         textAlign = TextAlign.Start
                                     )
@@ -219,8 +287,8 @@ fun WebBrowserScreen(
                                     unfocusedContainerColor = Color.Transparent,
                                     focusedIndicatorColor = Color.Transparent,
                                     unfocusedIndicatorColor = Color.Transparent,
-                                    focusedTextColor = DarkText,
-                                    unfocusedTextColor = DarkText
+                                    focusedTextColor = currentText,
+                                    unfocusedTextColor = currentText
                                 ),
                                 singleLine = true,
                                 keyboardOptions = KeyboardOptions(
@@ -249,13 +317,13 @@ fun WebBrowserScreen(
                             modifier = Modifier
                                 .testTag("bookmark_toggle_button")
                                 .size(44.dp)
-                                .background(LightElement, CircleShape)
-                                .border(1.dp, ShadowBorder, CircleShape)
+                                .background(currentLightElement, CircleShape)
+                                .border(1.dp, currentBorder, CircleShape)
                         ) {
                             Icon(
                                 imageVector = if (isBookmarked) Icons.Filled.Star else Icons.Outlined.StarOutline,
                                 contentDescription = "حفظ في المفضلة",
-                                tint = if (isBookmarked) AccentBlue else SecondaryText
+                                tint = if (isBookmarked) currentAccent else currentSecText
                             )
                         }
                     }
@@ -271,8 +339,8 @@ fun WebBrowserScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(3.dp),
-                            color = AccentBlue,
-                            trackColor = LightElement,
+                            color = currentAccent,
+                            trackColor = currentLightElement,
                         )
                     }
                 }
@@ -281,10 +349,10 @@ fun WebBrowserScreen(
         bottomBar = {
             // Elegant Navigation Toolbar supporting RTL naturally using weights - Light UI Glass
             Surface(
-                color = FrostWhite,
+                color = currentFrost,
                 tonalElevation = 8.dp,
                 modifier = Modifier
-                    .border(width = 1.dp, color = ShadowBorder)
+                    .border(width = 1.dp, color = currentBorder)
                     .windowInsetsPadding(WindowInsets.navigationBars)
             ) {
                 Row(
@@ -304,7 +372,7 @@ fun WebBrowserScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "الرجوع للخلف",
-                            tint = if (canGoBack) DarkText else SecondaryText.copy(alpha = 0.4f)
+                            tint = if (canGoBack) currentText else currentSecText.copy(alpha = 0.4f)
                         )
                     }
 
@@ -318,7 +386,7 @@ fun WebBrowserScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                             contentDescription = "التقدم للأمام",
-                            tint = if (canGoForward) DarkText else SecondaryText.copy(alpha = 0.4f)
+                            tint = if (canGoForward) currentText else currentSecText.copy(alpha = 0.4f)
                         )
                     }
 
@@ -331,7 +399,7 @@ fun WebBrowserScreen(
                         Icon(
                             imageVector = if (isLoading) Icons.Default.Close else Icons.Default.Refresh,
                             contentDescription = if (isLoading) "إيقاف التحميل" else "إعادة تحميل الصفحة",
-                            tint = DarkText
+                            tint = currentText
                         )
                     }
 
@@ -345,18 +413,18 @@ fun WebBrowserScreen(
                             Icon(
                                 imageVector = Icons.Outlined.Layers,
                                 contentDescription = "قائمة علامات التبويب",
-                                tint = DarkText
+                                tint = currentText
                             )
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
                                     .offset(x = 5.dp, y = (-2).dp)
-                                    .background(AccentBlue, CircleShape)
+                                    .background(currentAccent, CircleShape)
                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                             ) {
                                 Text(
                                     text = tabs.size.toString(),
-                                    color = Color.White,
+                                    color = if (isIncognito) Color.Black else Color.White,
                                     fontSize = 9.sp,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -373,7 +441,7 @@ fun WebBrowserScreen(
                         Icon(
                             imageVector = Icons.Default.Bookmarks,
                             contentDescription = "السجل والمفضلة",
-                            tint = DarkText
+                            tint = currentText
                         )
                     }
                 }
@@ -384,26 +452,63 @@ fun WebBrowserScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(GlassBg)
+                .background(currentBg)
         ) {
             BrowserWebView(
                 viewModel = viewModel,
                 modifier = Modifier.fillMaxSize()
             )
+
+            // Dynamic Floating Stealth Incognito Active Badge
+            if (isIncognito) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .background(currentAccent, RoundedCornerShape(20.dp))
+                            .border(1.dp, Color.White.copy(alpha = 0.2f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.VisibilityOff,
+                            contentDescription = null,
+                            tint = Color.Black,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "وضع متخفٍ نشط",
+                            color = Color.Black,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
     }
 
-    // Modal Bottom sheet for Bookmarks and History showing high-fidelity light panel
+    // Modal Bottom sheet for Bookmarks and History showing high-fidelity light/dark panel
     if (showHistoryAndBookmarksSheet) {
         ModalBottomSheet(
             onDismissRequest = { showHistoryAndBookmarksSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-            containerColor = MatteWhite,
+            containerColor = currentMatte,
             tonalElevation = 16.dp,
         ) {
             HistoryAndBookmarksPanel(
                 bookmarks = bookmarks,
                 history = history,
+                isIncognito = isIncognito,
+                currentLightElement = currentLightElement,
+                currentAccent = currentAccent,
+                currentText = currentText,
+                currentSecText = currentSecText,
+                currentBorder = currentBorder,
                 onBookmarkSelected = { url ->
                     viewModel.handleSearchOrUrl(url)
                     showHistoryAndBookmarksSheet = false
@@ -424,12 +529,18 @@ fun WebBrowserScreen(
         ModalBottomSheet(
             onDismissRequest = { showTabsListSheet = false },
             sheetState = rememberModalBottomSheetState(),
-            containerColor = MatteWhite,
+            containerColor = currentMatte,
             tonalElevation = 16.dp,
         ) {
             TabsManagerPanel(
                 tabs = tabs,
                 activeTabId = activeTabId,
+                isIncognito = isIncognito,
+                currentLightElement = currentLightElement,
+                currentAccent = currentAccent,
+                currentText = currentText,
+                currentSecText = currentSecText,
+                currentBorder = currentBorder,
                 onTabSelected = { tabId ->
                     viewModel.switchTab(tabId)
                     showTabsListSheet = false
@@ -444,11 +555,17 @@ fun WebBrowserScreen(
     }
 }
 
-// Subcomponent Layouts for History And Bookmarks light theme
+// Subcomponent Layouts for History And Bookmarks light/dark theme
 @Composable
 fun HistoryAndBookmarksPanel(
     bookmarks: List<Bookmark>,
     history: List<HistoryEntry>,
+    isIncognito: Boolean,
+    currentLightElement: Color,
+    currentAccent: Color,
+    currentText: Color,
+    currentSecText: Color,
+    currentBorder: Color,
     onBookmarkSelected: (String) -> Unit,
     onHistorySelected: (String) -> Unit,
     onDeleteBookmark: (Bookmark) -> Unit,
@@ -456,18 +573,38 @@ fun HistoryAndBookmarksPanel(
     onClearAllHistory: () -> Unit
 ) {
     var selectedTabState by remember { mutableStateOf(0) } // 0 -> Bookmarks, 1 -> History
+    var searchQuery by remember { mutableStateOf("") }
+
+    // Live Instant filtering based on local query
+    val filteredBookmarks = remember(bookmarks, searchQuery) {
+        if (searchQuery.isBlank()) bookmarks else {
+            bookmarks.filter {
+                it.title.contains(searchQuery, ignoreCase = true) ||
+                it.url.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
+
+    val filteredHistory = remember(history, searchQuery) {
+        if (searchQuery.isBlank()) history else {
+            history.filter {
+                it.title.contains(searchQuery, ignoreCase = true) ||
+                it.url.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .fillMaxHeight(0.75f)
-            .padding(16.dp)
+            .fillMaxHeight(0.85f)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        // Tab header switch styled with gorgeous light gray capsule pills
+        // Tab header switch styled with gorgeous capsule pill buttons
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(LightElement, RoundedCornerShape(12.dp))
+                .background(currentLightElement, RoundedCornerShape(12.dp))
                 .padding(4.dp),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
@@ -477,8 +614,10 @@ fun HistoryAndBookmarksPanel(
                     .weight(1f)
                     .padding(2.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (selectedTabState == 0) Color.White else Color.Transparent,
-                    contentColor = if (selectedTabState == 0) AccentBlue else DarkText
+                    containerColor = if (selectedTabState == 0) {
+                        if (isIncognito) IncognitoTabActiveBg else Color.White
+                    } else Color.Transparent,
+                    contentColor = if (selectedTabState == 0) currentAccent else currentText
                 ),
                 elevation = if (selectedTabState == 0) ButtonDefaults.buttonElevation(defaultElevation = 2.dp) else ButtonDefaults.buttonElevation(0.dp),
                 shape = RoundedCornerShape(10.dp)
@@ -494,8 +633,10 @@ fun HistoryAndBookmarksPanel(
                     .weight(1f)
                     .padding(2.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (selectedTabState == 1) Color.White else Color.Transparent,
-                    contentColor = if (selectedTabState == 1) AccentBlue else DarkText
+                    containerColor = if (selectedTabState == 1) {
+                        if (isIncognito) IncognitoTabActiveBg else Color.White
+                    } else Color.Transparent,
+                    contentColor = if (selectedTabState == 1) currentAccent else currentText
                 ),
                 elevation = if (selectedTabState == 1) ButtonDefaults.buttonElevation(defaultElevation = 2.dp) else ButtonDefaults.buttonElevation(0.dp),
                 shape = RoundedCornerShape(10.dp)
@@ -506,23 +647,86 @@ fun HistoryAndBookmarksPanel(
             }
         }
 
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // High-Fidelity Local Filter Search Bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .background(currentLightElement, RoundedCornerShape(22.dp))
+                .border(1.dp, currentBorder, RoundedCornerShape(22.dp))
+                .padding(horizontal = 14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = null,
+                tint = currentSecText,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            TextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = {
+                    Text(
+                        text = if (selectedTabState == 0) "ابحث في مفضلتك..." else "ابحث في السجل اليومي...",
+                        color = currentSecText,
+                        fontSize = 12.sp
+                    )
+                },
+                modifier = Modifier.weight(1f),
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    focusedTextColor = currentText,
+                    unfocusedTextColor = currentText
+                ),
+                singleLine = true,
+                textStyle = LocalTextStyle.current.copy(fontSize = 12.sp)
+            )
+            if (searchQuery.isNotEmpty()) {
+                IconButton(
+                    onClick = { searchQuery = "" },
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "مسح",
+                        tint = currentSecText,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+
         Spacer(modifier = Modifier.height(16.dp))
 
         if (selectedTabState == 0) {
-            if (bookmarks.isEmpty()) {
+            if (filteredBookmarks.isEmpty()) {
                 EmptyStateLayout(
                     imageVector = Icons.Default.BookmarkBorder,
-                    title = "مفضلتك فارغة حالياً",
-                    subtitle = "احفظ مواقع الويب اليومية بالنقر على النجمة في شريط العنوان للاقتناء بها والعودة إليها بسرعة!"
+                    title = if (searchQuery.isNotEmpty()) "لا توجد نتائج مطابقة" else "مفضلتك فارغة حالياً",
+                    subtitle = if (searchQuery.isNotEmpty()) "تحقق من الكلمات المدخلة وحاول مجدداً للبحث في المفضلة." else "احفظ مواقع الويب اليومية بالنقر على النجمة في شريط العنوان للاقتناء بها والعودة إليها بسرعة!",
+                    currentText = currentText,
+                    currentSecText = currentSecText
                 )
             } else {
                 LazyColumn(
                     modifier = Modifier.weight(1f),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    items(bookmarks) { bookmark ->
+                    items(filteredBookmarks) { bookmark ->
                         BookmarkRow(
                             bookmark = bookmark,
+                            currentLightElement = currentLightElement,
+                            currentAccent = currentAccent,
+                            currentText = currentText,
+                            currentSecText = currentSecText,
+                            currentBorder = currentBorder,
                             onSelect = { onBookmarkSelected(bookmark.url) },
                             onDelete = { onDeleteBookmark(bookmark) }
                         )
@@ -530,11 +734,13 @@ fun HistoryAndBookmarksPanel(
                 }
             }
         } else {
-            if (history.isEmpty()) {
+            if (filteredHistory.isEmpty()) {
                 EmptyStateLayout(
                     imageVector = Icons.Default.HistoryToggleOff,
-                    title = "سجل تصفحك خالٍ",
-                    subtitle = "مواقع الويب والمقالات التي تزورها ستظهر منظمة ومجدولة زمنياً هنا تلقائياً لراحتك!"
+                    title = if (searchQuery.isNotEmpty()) "لا توجد نتائج مطابقة" else "سجل تصفحك خالٍ",
+                    subtitle = if (searchQuery.isNotEmpty()) "تحقق من صحة المدخلات أو جرب البحث بكلمات أبسط للوصول للسجل." else "مواقع الويب والمقالات التي تزورها ستظهر منظمة ومجدولة زمنياً هنا تلقائياً لراحتك!",
+                    currentText = currentText,
+                    currentSecText = currentSecText
                 )
             } else {
                 Column(modifier = Modifier.weight(1f)) {
@@ -556,9 +762,14 @@ fun HistoryAndBookmarksPanel(
                         modifier = Modifier.weight(1f),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(history) { entry ->
+                        items(filteredHistory) { entry ->
                             HistoryRow(
                                 entry = entry,
+                                currentLightElement = currentLightElement,
+                                currentAccent = currentAccent,
+                                currentText = currentText,
+                                currentSecText = currentSecText,
+                                currentBorder = currentBorder,
                                 onSelect = { onHistorySelected(entry.url) },
                                 onDelete = { onDeleteHistory(entry) }
                             )
@@ -573,6 +784,11 @@ fun HistoryAndBookmarksPanel(
 @Composable
 fun BookmarkRow(
     bookmark: Bookmark,
+    currentLightElement: Color,
+    currentAccent: Color,
+    currentText: Color,
+    currentSecText: Color,
+    currentBorder: Color,
     onSelect: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -580,8 +796,8 @@ fun BookmarkRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onSelect() }
-            .border(1.dp, ShadowBorder, RoundedCornerShape(12.dp)),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+            .border(1.dp, currentBorder, RoundedCornerShape(12.dp)),
+        colors = CardDefaults.cardColors(containerColor = if (currentLightElement == IncognitoLightElement) currentLightElement.copy(alpha = 0.5f) else Color.White),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
@@ -591,13 +807,13 @@ fun BookmarkRow(
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .background(LightElement, CircleShape),
+                    .background(currentLightElement, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Bookmark,
                     contentDescription = null,
-                    tint = AccentBlue,
+                    tint = currentAccent,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -607,7 +823,7 @@ fun BookmarkRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = bookmark.title,
-                    color = DarkText,
+                    color = currentText,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     maxLines = 1,
@@ -615,7 +831,7 @@ fun BookmarkRow(
                 )
                 Text(
                     text = bookmark.url,
-                    color = SecondaryText,
+                    color = currentSecText,
                     fontSize = 11.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -633,6 +849,11 @@ fun BookmarkRow(
 @Composable
 fun HistoryRow(
     entry: HistoryEntry,
+    currentLightElement: Color,
+    currentAccent: Color,
+    currentText: Color,
+    currentSecText: Color,
+    currentBorder: Color,
     onSelect: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -645,8 +866,8 @@ fun HistoryRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onSelect() }
-            .border(1.dp, ShadowBorder, RoundedCornerShape(12.dp)),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+            .border(1.dp, currentBorder, RoundedCornerShape(12.dp)),
+        colors = CardDefaults.cardColors(containerColor = if (currentLightElement == IncognitoLightElement) currentLightElement.copy(alpha = 0.5f) else Color.White),
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(
@@ -656,13 +877,13 @@ fun HistoryRow(
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .background(LightElement, CircleShape),
+                    .background(currentLightElement, CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.History,
                     contentDescription = null,
-                    tint = SecondaryText,
+                    tint = currentSecText,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -672,7 +893,7 @@ fun HistoryRow(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = entry.title,
-                    color = DarkText,
+                    color = currentText,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     maxLines = 1,
@@ -680,7 +901,7 @@ fun HistoryRow(
                 )
                 Text(
                     text = entry.url,
-                    color = SecondaryText,
+                    color = currentSecText,
                     fontSize = 11.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
@@ -689,13 +910,13 @@ fun HistoryRow(
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = dateString,
-                    color = AccentBlue,
+                    color = currentAccent,
                     fontSize = 9.sp
                 )
             }
 
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.Close, tint = SecondaryText.copy(alpha = 0.6f), contentDescription = "حذف")
+                Icon(Icons.Default.Close, tint = currentSecText.copy(alpha = 0.6f), contentDescription = "حذف")
             }
         }
     }
@@ -705,6 +926,12 @@ fun HistoryRow(
 fun TabsManagerPanel(
     tabs: List<BrowserTab>,
     activeTabId: String,
+    isIncognito: Boolean,
+    currentLightElement: Color,
+    currentAccent: Color,
+    currentText: Color,
+    currentSecText: Color,
+    currentBorder: Color,
     onTabSelected: (String) -> Unit,
     onCloseTab: (String) -> Unit,
     onAddNewTab: () -> Unit
@@ -722,14 +949,14 @@ fun TabsManagerPanel(
         ) {
             Text(
                 text = "علامات التبويب المفتوحة (${tabs.size})",
-                color = DarkText,
+                color = currentText,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
             )
 
             Button(
                 onClick = onAddNewTab,
-                colors = ButtonDefaults.buttonColors(containerColor = LightElement, contentColor = AccentBlue),
+                colors = ButtonDefaults.buttonColors(containerColor = currentLightElement, contentColor = currentAccent),
                 shape = RoundedCornerShape(8.dp)
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -752,11 +979,15 @@ fun TabsManagerPanel(
                         .clickable { onTabSelected(tab.id) }
                         .border(
                             width = 1.dp,
-                            color = if (isActive) AccentBlue else ShadowBorder,
+                            color = if (isActive) currentAccent else currentBorder,
                             shape = RoundedCornerShape(12.dp)
                         ),
                     colors = CardDefaults.cardColors(
-                        containerColor = if (isActive) TabActiveBg else Color.White
+                        containerColor = if (isActive) {
+                            if (isIncognito) IncognitoTabActiveBg else TabActiveBg
+                        } else {
+                            if (isIncognito) currentLightElement.copy(alpha = 0.5f) else Color.White
+                        }
                     ),
                     shape = RoundedCornerShape(12.dp)
                 ) {
@@ -767,7 +998,7 @@ fun TabsManagerPanel(
                         Icon(
                             imageVector = Icons.Default.Web,
                             contentDescription = null,
-                            tint = if (isActive) AccentBlue else SecondaryText,
+                            tint = if (isActive) currentAccent else currentSecText,
                             modifier = Modifier.size(24.dp)
                         )
 
@@ -776,7 +1007,7 @@ fun TabsManagerPanel(
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = tab.title,
-                                color = DarkText,
+                                color = currentText,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 maxLines = 1,
@@ -784,7 +1015,7 @@ fun TabsManagerPanel(
                             )
                             Text(
                                 text = tab.url,
-                                color = SecondaryText,
+                                color = currentSecText,
                                 fontSize = 11.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -796,7 +1027,11 @@ fun TabsManagerPanel(
                             Icon(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "إغلاق",
-                                tint = if (isActive) TabActiveText else DarkText
+                                tint = if (isActive) {
+                                    if (isIncognito) IncognitoTabActiveText else TabActiveText
+                                } else {
+                                    currentText
+                                }
                             )
                         }
                     }
@@ -810,7 +1045,9 @@ fun TabsManagerPanel(
 fun EmptyStateLayout(
     imageVector: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
-    subtitle: String
+    subtitle: String,
+    currentText: Color,
+    currentSecText: Color
 ) {
     Column(
         modifier = Modifier
@@ -822,13 +1059,13 @@ fun EmptyStateLayout(
         Icon(
             imageVector = imageVector,
             contentDescription = null,
-            tint = SecondaryText.copy(alpha = 0.5f),
+            tint = currentSecText.copy(alpha = 0.5f),
             modifier = Modifier.size(72.dp)
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
             text = title,
-            color = DarkText,
+            color = currentText,
             fontWeight = FontWeight.Bold,
             fontSize = 16.sp,
             textAlign = TextAlign.Center
@@ -836,7 +1073,7 @@ fun EmptyStateLayout(
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = subtitle,
-            color = SecondaryText,
+            color = currentSecText,
             fontSize = 12.sp,
             textAlign = TextAlign.Center,
             lineHeight = 18.sp

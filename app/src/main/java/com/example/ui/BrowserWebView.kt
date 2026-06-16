@@ -20,11 +20,23 @@ fun BrowserWebView(
     modifier: Modifier = Modifier
 ) {
     var webViewInstance by remember { mutableStateOf<WebView?>(null) }
+    val isIncognito by viewModel.isIncognito.collectAsState()
 
     // Navigation state mapping
     val canGoBack by viewModel.canGoBack.collectAsState()
     BackHandler(enabled = canGoBack) {
         webViewInstance?.goBack()
+    }
+
+    // React to private browsing (Incognito) updates
+    LaunchedEffect(isIncognito) {
+        webViewInstance?.let { webView ->
+            if (isIncognito) {
+                webView.clearHistory()
+                webView.clearCache(true)
+                android.webkit.CookieManager.getInstance().removeAllCookies(null)
+            }
+        }
     }
 
     // Listen to ViewModel navigation commands

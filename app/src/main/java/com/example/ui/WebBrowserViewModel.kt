@@ -33,6 +33,10 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
     private val _urlInput = MutableStateFlow("https://www.google.com")
     val urlInput: StateFlow<String> = _urlInput.asStateFlow()
 
+    // Incognito Mode State
+    private val _isIncognito = MutableStateFlow(false)
+    val isIncognito: StateFlow<Boolean> = _isIncognito.asStateFlow()
+
     // Page state (loading, progress, secure)
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -136,9 +140,11 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
             updateActiveTabTitle(title)
         }
 
-        // Save to local Room history
-        viewModelScope.launch {
-            repository.addHistoryEntry(title = title.ifEmpty { url }, url = url)
+        // Save to local Room history if NOT in incognito mode
+        if (!_isIncognito.value) {
+            viewModelScope.launch {
+                repository.addHistoryEntry(title = title.ifEmpty { url }, url = url)
+            }
         }
     }
 
@@ -248,6 +254,14 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         _isSecure.value = tab.url.startsWith("https://")
         viewModelScope.launch {
             _commands.emit(BrowserCommand.LoadUrl(tab.url))
+        }
+    }
+
+    fun toggleIncognito() {
+        _isIncognito.value = !_isIncognito.value
+        // Force reload the current tab to apply the mode cleanly
+        viewModelScope.launch {
+            _commands.emit(BrowserCommand.Reload)
         }
     }
 }
