@@ -12,6 +12,25 @@ import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.util.UUID
 
+data class VpnServer(
+    val name: String,
+    val countryCode: String,
+    val flag: String,
+    val ipAddress: String,
+    val port: String,
+    val ping: Int,
+    val speed: String
+)
+
+val vpnServersList = listOf(
+    VpnServer("ألمانيا (فرانكفورت)", "DE", "🇩🇪", "46.165.2.14", "80", 22, "112.5 Mbps"),
+    VpnServer("الولايات المتحدة (نيويورك)", "US", "🇺🇸", "104.244.42.1", "443", 38, "95.4 Mbps"),
+    VpnServer("المملكة المتحدة (لندن)", "GB", "🇬🇧", "185.86.151.2", "1194", 45, "87.1 Mbps"),
+    VpnServer("اليابان (طوكيو)", "JP", "🇯🇵", "210.140.10.3", "500", 112, "74.8 Mbps"),
+    VpnServer("سنغافورة (شانغي)", "SG", "🇸🇬", "128.199.64.12", "8080", 89, "91.2 Mbps"),
+    VpnServer("فرنسا (باريس)", "FR", "🇫🇷", "195.154.120.9", "443", 28, "104.1 Mbps")
+)
+
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class WebBrowserViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -36,6 +55,21 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
     // Incognito Mode State
     private val _isIncognito = MutableStateFlow(false)
     val isIncognito: StateFlow<Boolean> = _isIncognito.asStateFlow()
+
+    // VPN States
+    private val _isVpnConnected = MutableStateFlow(false)
+    val isVpnConnected: StateFlow<Boolean> = _isVpnConnected.asStateFlow()
+
+    private val _selectedVpnServer = MutableStateFlow(vpnServersList[0])
+    val selectedVpnServer: StateFlow<VpnServer> = _selectedVpnServer.asStateFlow()
+
+    private val _simulatedPing = MutableStateFlow(22)
+    val simulatedPing: StateFlow<Int> = _simulatedPing.asStateFlow()
+
+    private val _simulatedDataUsage = MutableStateFlow(0f)
+    val simulatedDataUsage: StateFlow<Float> = _simulatedDataUsage.asStateFlow()
+
+    private var vpnJob: kotlinx.coroutines.Job? = null
 
     // Page state (loading, progress, secure)
     private val _isLoading = MutableStateFlow(false)
@@ -263,5 +297,62 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         viewModelScope.launch {
             _commands.emit(BrowserCommand.Reload)
         }
+    }
+
+    fun toggleVpn() {
+        val isNowConnected = !_isVpnConnected.value
+        _isVpnConnected.value = isNowConnected
+        if (isNowConnected) {
+            startVpnSimulation()
+        } else {
+            stopVpnSimulation()
+        }
+        
+        // Reload page to simulate connection refresh over secure bridge
+        viewModelScope.launch {
+            _commands.emit(BrowserCommand.Reload)
+        }
+    }
+
+    fun setVpnServer(server: VpnServer) {
+        _selectedVpnServer.value = server
+        _simulatedPing.value = server.ping
+        
+        if (_isVpnConnected.value) {
+            stopVpnSimulation()
+            startVpnSimulation()
+            viewModelScope.launch {
+                _commands.emit(BrowserCommand.Reload)
+            }
+        }
+    }
+
+    private fun startVpnSimulation() {
+        vpnJob?.cancel()
+        vpnJob = viewModelScope.launch {
+            var count = _simulatedDataUsage.value
+            if (count == 0f) {
+                count = (1..4).random() + (0..9).random() / 10f
+            }
+            val currentServer = _selectedVpnServer.value
+            while (true) {
+                kotlinx.coroutines.delay(1000)
+                val increment = (5..65).random() / 1000f
+                count += increment
+                _simulatedDataUsage.value = count
+                val fluctuation = (-3..3).random()
+                _simulatedPing.value = (currentServer.ping + fluctuation).coerceAtLeast(4)
+            }
+        }
+    }
+
+    private fun stopVpnSimulation() {
+        vpnJob?.cancel()
+        vpnJob = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        stopVpnSimulation()
     }
 }

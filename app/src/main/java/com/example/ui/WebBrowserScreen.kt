@@ -92,8 +92,15 @@ fun WebBrowserScreen(
     val history by viewModel.history.collectAsState()
     val isIncognito by viewModel.isIncognito.collectAsState()
 
+    // VPN connection state & configuration
+    val isVpnConnected by viewModel.isVpnConnected.collectAsState()
+    val selectedVpnServer by viewModel.selectedVpnServer.collectAsState()
+    val simulatedPing by viewModel.simulatedPing.collectAsState()
+    val simulatedDataUsage by viewModel.simulatedDataUsage.collectAsState()
+
     var showHistoryAndBookmarksSheet by remember { mutableStateOf(false) }
     var showTabsListSheet by remember { mutableStateOf(false) }
+    var showVpnSheet by remember { mutableStateOf(false) }
 
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -311,6 +318,33 @@ fun WebBrowserScreen(
 
                         Spacer(modifier = Modifier.width(6.dp))
 
+                        // VPN configuration button
+                        IconButton(
+                            onClick = { showVpnSheet = true },
+                            modifier = Modifier
+                                .testTag("vpn_toggle_button")
+                                .size(44.dp)
+                                .background(
+                                    color = if (isVpnConnected) {
+                                        if (isIncognito) IncognitoAccent.copy(alpha = 0.2f) else AccentBlue.copy(alpha = 0.1f)
+                                    } else currentLightElement,
+                                    shape = CircleShape
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isVpnConnected) currentAccent else currentBorder,
+                                    shape = CircleShape
+                                )
+                        ) {
+                            Icon(
+                                imageVector = if (isVpnConnected) Icons.Default.Security else Icons.Outlined.Security,
+                                contentDescription = "تكوين شبكة VPN الافتراضية",
+                                tint = if (isVpnConnected) currentAccent else currentSecText
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
                         // Bookmarks quick toggle
                         IconButton(
                             onClick = { viewModel.toggleBookmark() },
@@ -489,6 +523,38 @@ fun WebBrowserScreen(
                     }
                 }
             }
+
+            // Dynamic Floating VPN Active Badge
+            if (isVpnConnected) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(16.dp)
+                        .clickable { showVpnSheet = true }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .background(if (isIncognito) IncognitoTabActiveBg else TabActiveBg, RoundedCornerShape(20.dp))
+                            .border(1.dp, if (isIncognito) IncognitoTabActiveBorder else TabActiveBorder, RoundedCornerShape(20.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Security,
+                            contentDescription = null,
+                            tint = currentAccent,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "تشفير نشط: ${selectedVpnServer.flag} ${selectedVpnServer.name.substringBefore(" ")}",
+                            color = if (isIncognito) Color.White else TabActiveText,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
     }
 
@@ -550,6 +616,32 @@ fun WebBrowserScreen(
                     viewModel.createNewTab()
                     showTabsListSheet = false
                 }
+            )
+        }
+    }
+
+    // Modal Bottom sheet for VPN Shield configuration
+    if (showVpnSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showVpnSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = currentMatte,
+            tonalElevation = 16.dp,
+        ) {
+            VpnSettingsPanel(
+                isConnected = isVpnConnected,
+                selectedServer = selectedVpnServer,
+                servers = vpnServersList,
+                ping = simulatedPing,
+                dataUsage = simulatedDataUsage,
+                isIncognito = isIncognito,
+                currentLightElement = currentLightElement,
+                currentAccent = currentAccent,
+                currentText = currentText,
+                currentSecText = currentSecText,
+                currentBorder = currentBorder,
+                onToggleVpn = { viewModel.toggleVpn() },
+                onSelectServer = { viewModel.setVpnServer(it) }
             )
         }
     }
@@ -1078,5 +1170,286 @@ fun EmptyStateLayout(
             textAlign = TextAlign.Center,
             lineHeight = 18.sp
         )
+    }
+}
+
+@Composable
+fun VpnSettingsPanel(
+    isConnected: Boolean,
+    selectedServer: com.example.ui.VpnServer,
+    servers: List<com.example.ui.VpnServer>,
+    ping: Int,
+    dataUsage: Float,
+    isIncognito: Boolean,
+    currentLightElement: Color,
+    currentAccent: Color,
+    currentText: Color,
+    currentSecText: Color,
+    currentBorder: Color,
+    onToggleVpn: () -> Unit,
+    onSelectServer: (com.example.ui.VpnServer) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.85f)
+            .padding(16.dp)
+    ) {
+        // Upper Title & Active Tunnel Shield Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.VerifiedUser,
+                    contentDescription = null,
+                    tint = if (isConnected) currentAccent else currentSecText,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "جسر التشفير الآمن (VPN)",
+                    color = currentText,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
+            }
+
+            // Connection Status Glow Pill
+            Box(
+                modifier = Modifier
+                    .background(
+                        color = if (isConnected) currentAccent.copy(alpha = 0.15f) else currentLightElement,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = if (isConnected) currentAccent else currentBorder,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = if (isConnected) "نشط ومؤمن" else "غير متصل",
+                    color = if (isConnected) currentAccent else currentSecText,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Large Premium Frosted Connection Switch Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, currentBorder, RoundedCornerShape(16.dp)),
+            colors = CardDefaults.cardColors(
+                containerColor = if (isConnected) currentAccent.copy(alpha = 0.05f) else currentLightElement.copy(alpha = 0.3f)
+            ),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Interactive Clickable Power Switch
+                Box(
+                    modifier = Modifier
+                        .size(76.dp)
+                        .background(
+                            color = if (isConnected) currentAccent else currentLightElement,
+                            shape = CircleShape
+                        )
+                        .border(
+                            width = 2.dp,
+                            color = if (isConnected) Color.White.copy(alpha = 0.6f) else currentBorder,
+                            shape = CircleShape
+                        )
+                        .clickable { onToggleVpn() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PowerSettingsNew,
+                        contentDescription = "تفعيل / إلغاء تفعيل",
+                        tint = if (isConnected) (if (isIncognito) Color.Black else Color.White) else currentSecText,
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = if (isConnected) "انقر للقطع ووقف التشفير" else "انقر للتشغيل وبدء التصفح المشفر",
+                    color = currentSecText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Telemetry Statistics Grid
+        Text(
+            text = "إحصائيات الاتصال الفعلي",
+            color = currentText,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            // Stat Card 1: Virtual IP
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .border(1.dp, currentBorder, RoundedCornerShape(12.dp)),
+                colors = CardDefaults.cardColors(containerColor = currentLightElement.copy(alpha = 0.4f)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    Text("عنوان الـ IP", color = currentSecText, fontSize = 10.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (isConnected) selectedServer.ipAddress else "---.---.---.---",
+                        color = currentText,
+                        fontSize = 12.6.sp,
+                        fontWeight = FontWeight.Bold,
+                        style = androidx.compose.ui.text.TextStyle(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr)
+                    )
+                }
+            }
+
+            // Stat Card 2: Ping / Latency
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .border(1.dp, currentBorder, RoundedCornerShape(12.dp)),
+                colors = CardDefaults.cardColors(containerColor = currentLightElement.copy(alpha = 0.4f)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    Text("سرعة الاستجابة", color = currentSecText, fontSize = 10.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (isConnected) "$ping ms" else "--- ms",
+                        color = if (isConnected) {
+                            if (ping < 35) SecureGreen else if (ping < 90) currentAccent else Color.Yellow
+                        } else currentSecText,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            // Stat Card 3: Tunneled Data
+            Card(
+                modifier = Modifier
+                    .weight(1f)
+                    .border(1.dp, currentBorder, RoundedCornerShape(12.dp)),
+                colors = CardDefaults.cardColors(containerColor = currentLightElement.copy(alpha = 0.4f)),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(12.dp)
+                ) {
+                    Text("بيانات مشفرة", color = currentSecText, fontSize = 10.sp)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (isConnected) String.format(Locale.US, "%.3f MB", dataUsage) else "0.000 MB",
+                        color = currentText,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // High Speed Node selection list header
+        Text(
+            text = "اختر خادم التشفير الجغرافي",
+            color = currentText,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            items(servers) { server ->
+                val isSelected = server.name == selectedServer.name
+                val borderHighlight = if (isSelected) currentAccent else currentBorder
+                val backgroundShade = if (isSelected) currentAccent.copy(alpha = 0.08f) else currentLightElement.copy(alpha = 0.3f)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(backgroundShade)
+                        .border(1.dp, borderHighlight, RoundedCornerShape(12.dp))
+                        .clickable { onSelectServer(server) }
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = server.flag,
+                        fontSize = 20.sp
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = server.name,
+                            color = currentText,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.5.sp
+                        )
+                        Text(
+                            text = "منفذ: ${server.ipAddress}:${server.port}",
+                            color = currentSecText,
+                            fontSize = 11.sp,
+                            style = androidx.compose.ui.text.TextStyle(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr)
+                        )
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Speed,
+                            contentDescription = null,
+                            tint = currentSecText,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = server.speed,
+                            color = currentAccent,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        )
+                    }
+                }
+            }
+        }
     }
 }
