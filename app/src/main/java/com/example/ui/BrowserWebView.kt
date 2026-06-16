@@ -78,6 +78,25 @@ fun BrowserWebView(
                         return false // Force links to load inside this WebView
                     }
 
+                    override fun shouldInterceptRequest(
+                        view: WebView?,
+                        request: WebResourceRequest?
+                    ): android.webkit.WebResourceResponse? {
+                        val isBlockedEnabled = viewModel.isAdBlockerEnabled.value
+                        if (isBlockedEnabled) {
+                            val url = request?.url?.toString() ?: ""
+                            if (AdBlockerHelper.isAdUrl(url)) {
+                                viewModel.incrementBlockedAds()
+                                return android.webkit.WebResourceResponse(
+                                    "text/javascript",
+                                    "UTF-8",
+                                    java.io.ByteArrayInputStream("".toByteArray())
+                                )
+                            }
+                        }
+                        return super.shouldInterceptRequest(view, request)
+                    }
+
                     override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
                         url?.let { viewModel.onPageStarted(it) }
                         viewModel.updateNavigationState(
@@ -92,6 +111,18 @@ fun BrowserWebView(
                             canGoBack = view?.canGoBack() ?: false,
                             canGoForward = view?.canGoForward() ?: false
                         )
+                        // Injects CSS to hide ad containers if ad blocker is active
+                        if (viewModel.isAdBlockerEnabled.value) {
+                            val hideAdsCss = """
+                                (function() {
+                                    var style = document.createElement('style');
+                                    style.type = 'text/css';
+                                    style.innerHTML = 'img[src*="ad"], iframe[src*="ad"], div[class*="ad-"], div[class*="ads-"], div[id*="ad-"], div[id*="ads-"], .ad, .ads, .ad-banner, .ad-box, .ad-card, .ad-container, .google-panel, #google_ads_iframe, .sponsor, .sponsored, [class*="sponsored"] { display: none !important; height: 0 !important; width: 0 !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; }';
+                                    document.head.appendChild(style);
+                                })();
+                            """.trimIndent()
+                            view?.evaluateJavascript(hideAdsCss, null)
+                        }
                     }
                 }
 
@@ -123,4 +154,28 @@ fun BrowserWebView(
             webViewInstance = null
         }
     )
+}
+
+object AdBlockerHelper {
+    private val adKeywords = hashSetOf(
+        "doubleclick.net", "googleads", "googlesyndication.com", "googleadservices.com",
+        "adservices.google", "adnxs.com", "moatads.com", "taboola.com", "outbrain.com",
+        "scorecardresearch.com", "pubmatic.com", "rubiconproject.com", "openx.net",
+        "amazon-adsystem.com", "criteo.com", "adcolony.com", "adsrvr.org", "vungle.com",
+        "applovin.com", "unityads", "admob", "bidswitch.net", "casalemedia.com",
+        "popads.net", "onclickads.net", "propellerads.com", "exoclick.com", "adsterra.com",
+        "mgid.com", "revcontent.com", "buysellads.com", "smartadserver.com", "advertising.com",
+        "/pagead/", "/popunder", "hotjar.com", "addthis.com", "quantserve.com",
+        "banners", "adserver", "adsystem", "adservice"
+    )
+
+    fun isAdUrl(url: String): Boolean {
+        val lowerUrl = url.lowercase()
+        for (keyword in adKeywords) {
+            if (lowerUrl.contains(keyword)) {
+                return true
+            }
+        }
+        return false
+    }
 }

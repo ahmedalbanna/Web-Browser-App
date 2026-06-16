@@ -98,9 +98,13 @@ fun WebBrowserScreen(
     val simulatedPing by viewModel.simulatedPing.collectAsState()
     val simulatedDataUsage by viewModel.simulatedDataUsage.collectAsState()
 
+    val isAdBlockerEnabled by viewModel.isAdBlockerEnabled.collectAsState()
+    val blockedAdsCount by viewModel.blockedAdsCount.collectAsState()
+
     var showHistoryAndBookmarksSheet by remember { mutableStateOf(false) }
     var showTabsListSheet by remember { mutableStateOf(false) }
     var showVpnSheet by remember { mutableStateOf(false) }
+    var showAdBlockerSheet by remember { mutableStateOf(false) }
 
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -341,6 +345,52 @@ fun WebBrowserScreen(
                                 contentDescription = "تكوين شبكة VPN الافتراضية",
                                 tint = if (isVpnConnected) currentAccent else currentSecText
                             )
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        // Ad Blocker quick toggle button with count badge
+                        IconButton(
+                            onClick = { showAdBlockerSheet = true },
+                            modifier = Modifier
+                                .testTag("ad_blocker_toggle_button")
+                                .size(44.dp)
+                                .background(
+                                    color = if (isAdBlockerEnabled) {
+                                        if (isIncognito) IncognitoAccent.copy(alpha = 0.2f) else AccentBlue.copy(alpha = 0.1f)
+                                    } else currentLightElement,
+                                    shape = CircleShape
+                                )
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isAdBlockerEnabled) currentAccent else currentBorder,
+                                    shape = CircleShape
+                                )
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = if (isAdBlockerEnabled) Icons.Default.Block else Icons.Default.Block,
+                                    contentDescription = "تبديل مانع الإعلانات",
+                                    tint = if (isAdBlockerEnabled) currentAccent else currentSecText,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                if (isAdBlockerEnabled && blockedAdsCount > 0) {
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.TopEnd)
+                                            .offset(x = 10.dp, y = (-10).dp)
+                                            .background(Color.Red, CircleShape)
+                                            .padding(horizontal = 4.dp, vertical = 1.dp)
+                                    ) {
+                                        Text(
+                                            text = blockedAdsCount.toString(),
+                                            color = Color.White,
+                                            fontSize = 8.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
                         }
 
                         Spacer(modifier = Modifier.width(6.dp))
@@ -642,6 +692,28 @@ fun WebBrowserScreen(
                 currentBorder = currentBorder,
                 onToggleVpn = { viewModel.toggleVpn() },
                 onSelectServer = { viewModel.setVpnServer(it) }
+            )
+        }
+    }
+
+    // Modal Bottom sheet for Ad Blocker configuration
+    if (showAdBlockerSheet) {
+        ModalBottomSheet(
+            onDismissRequest = { showAdBlockerSheet = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            containerColor = currentMatte,
+            tonalElevation = 16.dp,
+        ) {
+            AdBlockerSettingsPanel(
+                isEnabled = isAdBlockerEnabled,
+                blockedCount = blockedAdsCount,
+                isIncognito = isIncognito,
+                currentLightElement = currentLightElement,
+                currentAccent = currentAccent,
+                currentText = currentText,
+                currentSecText = currentSecText,
+                currentBorder = currentBorder,
+                onToggleAdBlocker = { viewModel.toggleAdBlocker() }
             )
         }
     }
@@ -1448,6 +1520,218 @@ fun VpnSettingsPanel(
                             fontSize = 11.sp
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AdBlockerSettingsPanel(
+    isEnabled: Boolean,
+    blockedCount: Int,
+    isIncognito: Boolean,
+    currentLightElement: Color,
+    currentAccent: Color,
+    currentText: Color,
+    currentSecText: Color,
+    currentBorder: Color,
+    onToggleAdBlocker: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .fillMaxHeight(0.85f)
+            .padding(16.dp)
+    ) {
+        // Upper Title & Shield Status
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Default.Security,
+                    contentDescription = null,
+                    tint = if (isEnabled) currentAccent else currentSecText,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "درع حظر الإعلانات والتعقب",
+                    color = currentText,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 17.sp
+                )
+            }
+
+            // Connection Status Glow Pill
+            Box(
+                modifier = Modifier
+                    .background(
+                        color = if (isEnabled) currentAccent.copy(alpha = 0.15f) else currentLightElement,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .border(
+                        width = 1.dp,
+                        color = if (isEnabled) currentAccent else currentBorder,
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = if (isEnabled) "الدرع نشط" else "الدرع متوقف",
+                    color = if (isEnabled) currentAccent else currentSecText,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Large Switch Card
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, currentBorder, RoundedCornerShape(16.dp)),
+            colors = CardDefaults.cardColors(
+                containerColor = if (isEnabled) currentAccent.copy(alpha = 0.05f) else currentLightElement.copy(alpha = 0.3f)
+            ),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                // Interactive Power button
+                Box(
+                    modifier = Modifier
+                        .size(76.dp)
+                        .background(
+                            color = if (isEnabled) currentAccent else currentLightElement,
+                            shape = CircleShape
+                        )
+                        .border(
+                            width = 2.dp,
+                            color = if (isEnabled) Color.White.copy(alpha = 0.6f) else currentBorder,
+                            shape = CircleShape
+                        )
+                        .clickable { onToggleAdBlocker() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PowerSettingsNew,
+                        contentDescription = "تبديل حالة الدرع",
+                        tint = if (isEnabled) (if (isIncognito) Color.Black else Color.White) else currentSecText,
+                        modifier = Modifier.size(36.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = if (isEnabled) "اضغط هنا لتعطيل مانع الإعلانات" else "اضغط هنا لتفعيل مانع الإعلانات الذكي",
+                    color = currentSecText,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Real-time blocked count counter
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, currentBorder, RoundedCornerShape(16.dp)),
+            colors = CardDefaults.cardColors(containerColor = currentLightElement.copy(alpha = 0.2f)),
+            shape = RoundedCornerShape(16.dp)
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "الإعلانات المحجوبة على الصفحة الحالية",
+                        color = currentText,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        text = "يقوم النظام بتصفية الموارد لتسريع التصفح",
+                        color = currentSecText,
+                        fontSize = 11.sp
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .background(
+                            if (blockedCount > 0) Color.Red.copy(alpha = 0.15f) else currentLightElement,
+                            CircleShape
+                        )
+                        .size(54.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = blockedCount.toString(),
+                        color = if (blockedCount > 0) Color.Red else currentSecText,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 20.sp
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Ad Blocker Advantages Checklist
+        Text(
+            text = "مزايا درع التصفية المتقدم",
+            color = currentText,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Column(
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            val advantages = listOf(
+                "منع تعقب الإعلانات والأنشطة الإعلانية لخصوصية أكبر",
+                "حظر النوافذ المنبثقة وإطارات الفيديو المزعجة ومحتوى السبام",
+                "تصفح فائق السرعة بفضل منع تنزيل ملفات الإعلانات الضخمة",
+                "توفير هائل في استهلاك باقة الإنترنت وتحسين الأداء وعمر البطارية"
+            )
+
+            advantages.forEach { advantage ->
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.CheckCircle,
+                        contentDescription = null,
+                        tint = if (isEnabled) currentAccent else currentSecText,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = advantage,
+                        color = currentText,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }

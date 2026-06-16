@@ -71,6 +71,13 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
 
     private var vpnJob: kotlinx.coroutines.Job? = null
 
+    // Ad Blocker States
+    private val _isAdBlockerEnabled = MutableStateFlow(true)
+    val isAdBlockerEnabled: StateFlow<Boolean> = _isAdBlockerEnabled.asStateFlow()
+
+    private val _blockedAdsCount = MutableStateFlow(0)
+    val blockedAdsCount: StateFlow<Int> = _blockedAdsCount.asStateFlow()
+
     // Page state (loading, progress, secure)
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
@@ -161,6 +168,7 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         _loadingProgress.value = 5 // Initial progress indicator jump
         _urlInput.value = url
         _isSecure.value = url.startsWith("https://")
+        _blockedAdsCount.value = 0
         updateActiveTabUrl(url)
     }
 
@@ -349,6 +357,20 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
     private fun stopVpnSimulation() {
         vpnJob?.cancel()
         vpnJob = null
+    }
+
+    fun toggleAdBlocker() {
+        _isAdBlockerEnabled.value = !_isAdBlockerEnabled.value
+        if (!_isAdBlockerEnabled.value) {
+            _blockedAdsCount.value = 0
+        }
+        viewModelScope.launch {
+            _commands.emit(BrowserCommand.Reload)
+        }
+    }
+
+    fun incrementBlockedAds() {
+        _blockedAdsCount.value += 1
     }
 
     override fun onCleared() {
