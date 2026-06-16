@@ -6,8 +6,8 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [Bookmark::class, HistoryEntry::class],
-    version = 1,
+    entities = [Bookmark::class, HistoryEntry::class, DownloadItem::class],
+    version = 2,
     exportSchema = false
 )
 abstract class BrowserDatabase : RoomDatabase() {

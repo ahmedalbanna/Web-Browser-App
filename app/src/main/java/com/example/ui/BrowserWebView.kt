@@ -70,6 +70,10 @@ fun BrowserWebView(
                     setDisplayZoomControls(false)
                 }
 
+                setDownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->
+                    viewModel.startDownload(url, contentDisposition, mimetype, contentLength)
+                }
+
                 webViewClient = object : WebViewClient() {
                     override fun shouldOverrideUrlLoading(
                         view: WebView?,

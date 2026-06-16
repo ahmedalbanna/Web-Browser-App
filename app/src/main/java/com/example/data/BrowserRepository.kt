@@ -44,4 +44,19 @@ class BrowserRepository(private val browserDao: BrowserDao) {
     suspend fun clearHistory() {
         browserDao.clearAllHistory()
     }
+
+    // Downloads API
+    val allDownloads: Flow<List<DownloadItem>> = browserDao.getAllDownloads()
+
+    suspend fun addDownload(download: DownloadItem) {
+        browserDao.insertDownload(download)
+    }
+
+    suspend fun removeDownload(download: DownloadItem) {
+        browserDao.deleteDownload(download)
+    }
+
+    suspend fun clearAllDownloads() {
+        browserDao.clearAllDownloads()
+    }
 }

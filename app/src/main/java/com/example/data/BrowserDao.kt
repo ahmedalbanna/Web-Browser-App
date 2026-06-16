@@ -38,4 +38,17 @@ interface BrowserDao {
 
     @Query("DELETE FROM history_entries")
     suspend fun clearAllHistory()
+
+    // Download Operations
+    @Query("SELECT * FROM downloads ORDER BY timestamp DESC")
+    fun getAllDownloads(): Flow<List<DownloadItem>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertDownload(download: DownloadItem)
+
+    @Delete
+    suspend fun deleteDownload(download: DownloadItem)
+
+    @Query("DELETE FROM downloads")
+    suspend fun clearAllDownloads()
 }

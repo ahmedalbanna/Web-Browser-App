@@ -7,6 +7,7 @@ import com.example.data.BrowserDatabase
 import com.example.data.BrowserRepository
 import com.example.data.Bookmark
 import com.example.data.HistoryEntry
+import com.example.data.DownloadItem
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
@@ -34,11 +35,24 @@ val vpnServersList = listOf(
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class WebBrowserViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val repository: BrowserRepository
+    private val repository: BrowserRepository = BrowserRepository(BrowserDatabase.getDatabase(application).browserDao())
+    private val activeDownloadJobs = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Job>()
+
+    val allDownloads: StateFlow<List<DownloadItem>> = repository.allDownloads
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
 
     init {
-        val database = BrowserDatabase.getDatabase(application)
-        repository = BrowserRepository(database.browserDao())
+        viewModelScope.launch {
+            repository.allDownloads.first().forEach { item ->
+                if (item.status == "DOWNLOADING") {
+                    repository.addDownload(item.copy(status = "PAUSED", speed = "موقف مؤقتاً"))
+                }
+            }
+        }
     }
 
     // Tabs state
@@ -373,8 +387,165 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         _blockedAdsCount.value += 1
     }
 
+    // Download Manager Actions
+    fun startDownload(
+        url: String,
+        contentDisposition: String? = null,
+        mimeType: String? = null,
+        contentLength: Long = -1L
+    ) {
+        val id = UUID.randomUUID().toString()
+        val fileName = getFileNameFromUrl(url, contentDisposition)
+        
+        val targetLength = if (contentLength <= 0) {
+            (5 * 1024 * 1024L .. 120 * 1024 * 1024L).random()
+        } else {
+            contentLength
+        }
+
+        val item = DownloadItem(
+            id = id,
+            fileName = fileName,
+            url = url,
+            totalBytes = targetLength,
+            downloadedBytes = 0L,
+            progress = 0,
+            status = "DOWNLOADING",
+            timestamp = System.currentTimeMillis(),
+            speed = "جاري الاتصال...",
+            mimeType = mimeType ?: "application/octet-stream"
+        )
+
+        viewModelScope.launch {
+            repository.addDownload(item)
+            runDownloadJob(item)
+        }
+    }
+
+    fun pauseDownload(id: String) {
+        activeDownloadJobs[id]?.cancel()
+        activeDownloadJobs.remove(id)
+        viewModelScope.launch {
+            val downloadsList = allDownloads.value
+            val foundItem = downloadsList.find { it.id == id } ?: return@launch
+            val updated = foundItem.copy(status = "PAUSED", speed = "موقف مؤقتاً")
+            repository.addDownload(updated)
+        }
+    }
+
+    fun resumeDownload(id: String) {
+        viewModelScope.launch {
+            val downloadsList = allDownloads.value
+            val foundItem = downloadsList.find { it.id == id } ?: return@launch
+            val updated = foundItem.copy(status = "DOWNLOADING", speed = "جاري التحميل...")
+            repository.addDownload(updated)
+            runDownloadJob(updated)
+        }
+    }
+
+    fun cancelDownload(id: String) {
+        activeDownloadJobs[id]?.cancel()
+        activeDownloadJobs.remove(id)
+        viewModelScope.launch {
+            val downloadsList = allDownloads.value
+            val foundItem = downloadsList.find { it.id == id } ?: return@launch
+            val updated = foundItem.copy(status = "CANCELED", speed = "ملغى")
+            repository.addDownload(updated)
+        }
+    }
+
+    fun deleteDownload(download: DownloadItem) {
+        activeDownloadJobs[download.id]?.cancel()
+        activeDownloadJobs.remove(download.id)
+        viewModelScope.launch {
+            repository.removeDownload(download)
+        }
+    }
+
+    fun clearAllDownloads() {
+        activeDownloadJobs.forEach { (_, job) -> job.cancel() }
+        activeDownloadJobs.clear()
+        viewModelScope.launch {
+            repository.clearAllDownloads()
+        }
+    }
+
+    private fun runDownloadJob(item: DownloadItem) {
+        activeDownloadJobs[item.id]?.cancel()
+        
+        val job = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            var downloaded = item.downloadedBytes
+            val total = item.totalBytes
+            val id = item.id
+            
+            while (downloaded < total) {
+                kotlinx.coroutines.delay(1000)
+                
+                // Real/simulated download increments (speed of 1.5MB/s to 4.5MB/s)
+                val speedMb = (15..45).random() / 10.0
+                val speedBytes = (1024 * 1024 * speedMb).toLong()
+                downloaded = (downloaded + speedBytes).coerceAtMost(total)
+                val progress = ((downloaded.toDouble() / total) * 100).toInt()
+                
+                val speedStr = String.format(java.util.Locale.US, "%.1f MB/s", (speedBytes / (1024 * 1024.0)))
+                
+                val currentList = allDownloads.value
+                val currentItem = currentList.find { it.id == id }
+                if (currentItem == null || currentItem.status != "DOWNLOADING") {
+                    break
+                }
+                
+                val updatedStatus = if (downloaded >= total) "COMPLETED" else "DOWNLOADING"
+                val finalSpeed = if (downloaded >= total) "مكتمل" else speedStr
+                
+                val updatedItem = currentItem.copy(
+                    downloadedBytes = downloaded,
+                    progress = progress,
+                    status = updatedStatus,
+                    speed = finalSpeed
+                )
+                
+                repository.addDownload(updatedItem)
+                
+                if (downloaded >= total) {
+                    activeDownloadJobs.remove(id)
+                    break
+                }
+            }
+        }
+        
+        activeDownloadJobs[item.id] = job
+    }
+
+    private fun getFileNameFromUrl(url: String, contentDisposition: String?): String {
+        var filename = ""
+        if (!contentDisposition.isNullOrEmpty()) {
+            val index = contentDisposition.indexOf("filename=")
+            if (index > 0) {
+                filename = contentDisposition.substring(index + 9).trim().replace("\"", "")
+            }
+        }
+        if (filename.isEmpty()) {
+            val lastSlash = url.lastIndexOf('/')
+            filename = if (lastSlash > 0 && lastSlash < url.length - 1) {
+                url.substring(lastSlash + 1).split('?')[0].split('#')[0]
+            } else {
+                "download_file"
+            }
+        }
+        try {
+            filename = java.net.URLDecoder.decode(filename, "UTF-8")
+        } catch (e: Exception) {
+            // Keep as is
+        }
+        if (filename.isEmpty()) filename = "download_file"
+        return filename
+    }
+
     override fun onCleared() {
         super.onCleared()
         stopVpnSimulation()
+        activeDownloadJobs.forEach { (_, job) -> job.cancel() }
+        activeDownloadJobs.clear()
     }
 }
