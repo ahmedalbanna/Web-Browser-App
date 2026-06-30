@@ -453,14 +453,32 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         _isVpnConnected.value = isNowConnected
         if (isNowConnected) {
             startVpnSimulation()
+            startRealVpnService()
         } else {
             stopVpnSimulation()
+            stopRealVpnService()
         }
         
         // Reload page to simulate connection refresh over secure bridge
         viewModelScope.launch {
             _commands.emit(BrowserCommand.Reload)
         }
+    }
+
+    private fun startRealVpnService() {
+        val context = getApplication<Application>().applicationContext
+        val intent = android.content.Intent(context, LocalVpnService::class.java).apply {
+            action = LocalVpnService.ACTION_CONNECT
+        }
+        context.startService(intent)
+    }
+
+    private fun stopRealVpnService() {
+        val context = getApplication<Application>().applicationContext
+        val intent = android.content.Intent(context, LocalVpnService::class.java).apply {
+            action = LocalVpnService.ACTION_DISCONNECT
+        }
+        context.startService(intent)
     }
 
     fun setVpnServer(server: VpnServer) {

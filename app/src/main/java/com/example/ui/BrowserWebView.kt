@@ -271,20 +271,42 @@ fun BrowserWebView(
 }
 
 object AdBlockerHelper {
-    private val adKeywords = hashSetOf(
-        "doubleclick.net", "googleads", "googlesyndication.com", "googleadservices.com",
-        "adservices.google", "adnxs.com", "moatads.com", "taboola.com", "outbrain.com",
+    private val adDomains = hashSetOf(
+        "doubleclick.net", "googleads.g.doubleclick.net", "googlesyndication.com",
+        "googleadservices.com", "google-analytics.com", "analytics.google.com",
+        "adnxs.com", "moatads.com", "taboola.com", "outbrain.com",
         "scorecardresearch.com", "pubmatic.com", "rubiconproject.com", "openx.net",
         "amazon-adsystem.com", "criteo.com", "adcolony.com", "adsrvr.org", "vungle.com",
-        "applovin.com", "unityads", "admob", "bidswitch.net", "casalemedia.com",
+        "applovin.com", "unityads.unity3d.com", "admob.com", "bidswitch.net", "casalemedia.com",
         "popads.net", "onclickads.net", "propellerads.com", "exoclick.com", "adsterra.com",
         "mgid.com", "revcontent.com", "buysellads.com", "smartadserver.com", "advertising.com",
-        "/pagead/", "/popunder", "hotjar.com", "addthis.com", "quantserve.com",
-        "banners", "adserver", "adsystem", "adservice"
+        "hotjar.com", "addthis.com", "quantserve.com", "ads.yahoo.com", "connect.facebook.net",
+        "pixel.facebook.com", "analytics.twitter.com", "ads.twitter.com", "pixel.wp.com",
+        "adservice.google.com", "pagead2.googlesyndication.com", "securepubads.g.doubleclick.net"
+    )
+
+    private val adKeywords = listOf(
+        "/pagead/", "/popunder", "/ads/", "/ad/banner", "-ad-", "adserver", "adsystem"
     )
 
     fun isAdUrl(url: String): Boolean {
         val lowerUrl = url.lowercase()
+        
+        try {
+            val uri = java.net.URI(lowerUrl)
+            val host = uri.host
+            if (host != null) {
+                if (adDomains.contains(host)) return true
+                for (domain in adDomains) {
+                    if (host.endsWith(".$domain")) {
+                        return true
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            // Fallback if parsing fails
+        }
+
         for (keyword in adKeywords) {
             if (lowerUrl.contains(keyword)) {
                 return true
