@@ -104,7 +104,7 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
 
     // Back & forward state for buttons
     private val _canGoBack = MutableStateFlow(false)
-    val _canGoForward = MutableStateFlow(false)
+    private val _canGoForward = MutableStateFlow(false)
     val canGoBack: StateFlow<Boolean> = _canGoBack.asStateFlow()
     val canGoForward: StateFlow<Boolean> = _canGoForward.asStateFlow()
 

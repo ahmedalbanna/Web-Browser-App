@@ -264,6 +264,7 @@ fun BrowserWebView(
             webViewInstance = webView
         },
         onRelease = {
+            it.destroy()
             webViewInstance = null
         }
     )

@@ -49,20 +49,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-// --- Color Tokens for Light Frosted Glass Theme ---
-val GlassBg = Color(0xFFF3F4F9) // Light blue-gray canvas background
-val FrostWhite = Color(0xD8FFFFFF) // 85% opacity White glass material
-val MatteWhite = Color(0xF2FFFFFF) // More opaque white for overlays
-val LightElement = Color(0xFFEEF0F6) // Internal pills/address bar background
-val DarkText = Color(0xFF1B1B1F) // Deep carbon text
-val SecondaryText = Color(0xFF74777F) // Medium gray text
-val ShadowBorder = Color(0xFFDDE2F0) // Refined delicate border line
-val BorderHighlight = Color(0xFFB0C4DE) // Stronger line for active markers
-val AccentBlue = Color(0xFF005AC1) // Material Blue primary active indicator
-
-val TabActiveBg = Color(0xFFD3E3FD) // Light blue color for the selected tab
-val TabActiveText = Color(0xFF001D35) // Deep contrast active blue text
-val TabActiveBorder = Color(0xFFA8C7FA)
 val SecureGreen = Color(0xFF10B981) // Secure Green SSL line
 
 // --- Color Tokens for Incognito Stealth Glass Theme (Private) ---
@@ -122,20 +108,19 @@ fun WebBrowserScreen(
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
 
-    var addressText by remember { mutableStateOf(urlInput) }
-    LaunchedEffect(urlInput) {
-        addressText = urlInput
-    }
-
     // Dynamic Style selection based on Incognito state
-    val currentBg = if (isIncognito) IncognitoBg else GlassBg
-    val currentFrost = if (isIncognito) IncognitoFrost else FrostWhite
-    val currentMatte = if (isIncognito) IncognitoMatte else MatteWhite
-    val currentLightElement = if (isIncognito) IncognitoLightElement else LightElement
-    val currentText = if (isIncognito) IncognitoText else DarkText
-    val currentSecText = if (isIncognito) IncognitoSecText else SecondaryText
-    val currentBorder = if (isIncognito) IncognitoBorder else ShadowBorder
-    val currentAccent = if (isIncognito) IncognitoAccent else AccentBlue
+    val currentBg = if (isIncognito) IncognitoBg else MaterialTheme.colorScheme.background
+    val currentFrost = if (isIncognito) IncognitoFrost else MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)
+    val currentMatte = if (isIncognito) IncognitoMatte else MaterialTheme.colorScheme.surface
+    val currentLightElement = if (isIncognito) IncognitoLightElement else MaterialTheme.colorScheme.surfaceVariant
+    val currentText = if (isIncognito) IncognitoText else MaterialTheme.colorScheme.onBackground
+    val currentSecText = if (isIncognito) IncognitoSecText else MaterialTheme.colorScheme.onSurfaceVariant
+    val currentBorder = if (isIncognito) IncognitoBorder else MaterialTheme.colorScheme.outlineVariant
+    val currentAccent = if (isIncognito) IncognitoAccent else MaterialTheme.colorScheme.primary
+
+    val currentTabActiveBg = if (isIncognito) IncognitoTabActiveBg else MaterialTheme.colorScheme.primaryContainer
+    val currentTabActiveText = if (isIncognito) IncognitoTabActiveText else MaterialTheme.colorScheme.onPrimaryContainer
+    val currentTabActiveBorder = if (isIncognito) IncognitoTabActiveBorder else MaterialTheme.colorScheme.primary
 
     Scaffold(
         modifier = modifier
@@ -207,15 +192,15 @@ fun WebBrowserScreen(
                                     .clip(RoundedCornerShape(32.dp))
                                     .background(
                                         if (isActive) {
-                                            if (isIncognito) IncognitoTabActiveBg else TabActiveBg
+                                            if (isIncognito) IncognitoTabActiveBg else currentTabActiveBg
                                         } else {
-                                            if (isIncognito) Color.White.copy(alpha = 0.05f) else Color.White.copy(alpha = 0.5f)
+                                            if (isIncognito) Color.White.copy(alpha = 0.05f) else MaterialTheme.colorScheme.surfaceVariant
                                         }
                                     )
                                     .border(
                                         width = 1.dp,
                                         color = if (isActive) {
-                                            if (isIncognito) IncognitoTabActiveBorder else TabActiveBorder
+                                            if (isIncognito) IncognitoTabActiveBorder else currentTabActiveBorder
                                         } else {
                                             currentBorder
                                         },
@@ -235,11 +220,11 @@ fun WebBrowserScreen(
                                 Text(
                                     text = tab.title,
                                     color = if (isActive) {
-                                        if (isIncognito) IncognitoTabActiveText else TabActiveText
+                                        if (isIncognito) IncognitoTabActiveText else currentTabActiveText
                                     } else {
                                         currentText
                                     },
-                                    fontSize = 12.sp,
+                                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                                     fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -250,7 +235,7 @@ fun WebBrowserScreen(
                                     imageVector = Icons.Default.Close,
                                     contentDescription = "إغلاق التبويب",
                                     tint = if (isActive) {
-                                        if (isIncognito) IncognitoTabActiveText.copy(alpha = 0.7f) else TabActiveText.copy(alpha = 0.7f)
+                                        if (isIncognito) IncognitoTabActiveText.copy(alpha = 0.7f) else currentTabActiveText.copy(alpha = 0.7f)
                                     } else {
                                         currentSecText.copy(alpha = 0.6f)
                                     },
@@ -293,13 +278,13 @@ fun WebBrowserScreen(
 
                             // Unified browser URI line
                             TextField(
-                                value = addressText,
-                                onValueChange = { addressText = it },
+                                value = urlInput,
+                                onValueChange = { viewModel.setUrlInput(it) },
                                 placeholder = {
                                     Text(
                                         "ابحث أو اكتب عنوان موقع ويب...",
                                         color = currentSecText,
-                                        fontSize = 13.sp,
+                                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                                         textAlign = TextAlign.Start
                                     )
                                 },
@@ -320,7 +305,7 @@ fun WebBrowserScreen(
                                 ),
                                 keyboardActions = KeyboardActions(
                                     onSearch = {
-                                        viewModel.handleSearchOrUrl(addressText)
+                                        viewModel.handleSearchOrUrl(urlInput)
                                         focusManager.clearFocus()
                                         keyboardController?.hide()
                                     }
@@ -343,7 +328,7 @@ fun WebBrowserScreen(
                                 .size(44.dp)
                                 .background(
                                     color = if (isVpnConnected) {
-                                        if (isIncognito) IncognitoAccent.copy(alpha = 0.2f) else AccentBlue.copy(alpha = 0.1f)
+                                        if (isIncognito) IncognitoAccent.copy(alpha = 0.2f) else currentAccent.copy(alpha = 0.1f)
                                     } else currentLightElement,
                                     shape = CircleShape
                                 )
@@ -370,7 +355,7 @@ fun WebBrowserScreen(
                                 .size(44.dp)
                                 .background(
                                     color = if (isAdBlockerEnabled) {
-                                        if (isIncognito) IncognitoAccent.copy(alpha = 0.2f) else AccentBlue.copy(alpha = 0.1f)
+                                        if (isIncognito) IncognitoAccent.copy(alpha = 0.2f) else currentAccent.copy(alpha = 0.1f)
                                     } else currentLightElement,
                                     shape = CircleShape
                                 )
@@ -398,7 +383,7 @@ fun WebBrowserScreen(
                                         Text(
                                             text = blockedAdsCount.toString(),
                                             color = Color.White,
-                                            fontSize = 8.sp,
+                                            style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -435,7 +420,7 @@ fun WebBrowserScreen(
                                         Text(
                                             text = downloadingCount.toString(),
                                             color = if (isIncognito) Color.Black else Color.White,
-                                            fontSize = 8.sp,
+                                            style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
                                             fontWeight = FontWeight.Bold
                                         )
                                     }
@@ -631,7 +616,7 @@ fun WebBrowserScreen(
                                 Text(
                                     text = tabs.size.toString(),
                                     color = if (isIncognito) Color.Black else Color.White,
-                                    fontSize = 9.sp,
+                                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -689,7 +674,7 @@ fun WebBrowserScreen(
                         Text(
                             text = "وضع متخفٍ نشط",
                             color = Color.Black,
-                            fontSize = 11.sp,
+                            style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -706,8 +691,8 @@ fun WebBrowserScreen(
                 ) {
                     Row(
                         modifier = Modifier
-                            .background(if (isIncognito) IncognitoTabActiveBg else TabActiveBg, RoundedCornerShape(20.dp))
-                            .border(1.dp, if (isIncognito) IncognitoTabActiveBorder else TabActiveBorder, RoundedCornerShape(20.dp))
+                            .background(if (isIncognito) IncognitoTabActiveBg else currentTabActiveBg, RoundedCornerShape(20.dp))
+                            .border(1.dp, if (isIncognito) IncognitoTabActiveBorder else currentTabActiveBorder, RoundedCornerShape(20.dp))
                             .padding(horizontal = 12.dp, vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
@@ -720,8 +705,8 @@ fun WebBrowserScreen(
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = "تشفير نشط: ${selectedVpnServer.flag} ${selectedVpnServer.name.substringBefore(" ")}",
-                            color = if (isIncognito) Color.White else TabActiveText,
-                            fontSize = 11.sp,
+                            color = if (isIncognito) Color.White else currentTabActiveText,
+                            style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -735,6 +720,7 @@ fun WebBrowserScreen(
         ModalBottomSheet(
             onDismissRequest = { showHistoryAndBookmarksSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            dragHandle = { BottomSheetDefaults.DragHandle() },
             containerColor = currentMatte,
             tonalElevation = 16.dp,
         ) {
@@ -774,6 +760,7 @@ fun WebBrowserScreen(
         ModalBottomSheet(
             onDismissRequest = { showTabsListSheet = false },
             sheetState = rememberModalBottomSheetState(),
+            dragHandle = { BottomSheetDefaults.DragHandle() },
             containerColor = currentMatte,
             tonalElevation = 16.dp,
         ) {
@@ -804,6 +791,7 @@ fun WebBrowserScreen(
         ModalBottomSheet(
             onDismissRequest = { showVpnSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            dragHandle = { BottomSheetDefaults.DragHandle() },
             containerColor = currentMatte,
             tonalElevation = 16.dp,
         ) {
@@ -830,6 +818,7 @@ fun WebBrowserScreen(
         ModalBottomSheet(
             onDismissRequest = { showAdBlockerSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            dragHandle = { BottomSheetDefaults.DragHandle() },
             containerColor = currentMatte,
             tonalElevation = 16.dp,
         ) {
@@ -852,6 +841,7 @@ fun WebBrowserScreen(
         ModalBottomSheet(
             onDismissRequest = { showDownloadsSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            dragHandle = { BottomSheetDefaults.DragHandle() },
             containerColor = currentMatte,
             tonalElevation = 16.dp,
         ) {
@@ -878,6 +868,7 @@ fun WebBrowserScreen(
         ModalBottomSheet(
             onDismissRequest = { showTranslationSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            dragHandle = { BottomSheetDefaults.DragHandle() },
             containerColor = currentMatte,
             tonalElevation = 16.dp,
         ) {
@@ -899,6 +890,7 @@ fun WebBrowserScreen(
         ModalBottomSheet(
             onDismissRequest = { showImagesSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            dragHandle = { BottomSheetDefaults.DragHandle() },
             containerColor = currentMatte,
             tonalElevation = 16.dp,
         ) {
@@ -920,6 +912,7 @@ fun WebBrowserScreen(
         ModalBottomSheet(
             onDismissRequest = { showVideoPlayerSheet = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+            dragHandle = { BottomSheetDefaults.DragHandle() },
             containerColor = currentMatte,
             tonalElevation = 16.dp,
         ) {
@@ -1020,7 +1013,7 @@ fun HistoryAndBookmarksPanel(
             ) {
                 Icon(Icons.Default.Star, contentDescription = null, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("المفضلة", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("المفضلة", fontWeight = FontWeight.Bold, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
             }
 
             Button(
@@ -1040,7 +1033,7 @@ fun HistoryAndBookmarksPanel(
             ) {
                 Icon(Icons.Default.History, contentDescription = null, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("السجل", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text("السجل", fontWeight = FontWeight.Bold, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
             }
 
             Button(
@@ -1060,7 +1053,7 @@ fun HistoryAndBookmarksPanel(
             ) {
                 Icon(Icons.Default.Archive, contentDescription = null, modifier = Modifier.size(14.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("المحفوظة أوفلاين", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                Text("المحفوظة أوفلاين", fontWeight = FontWeight.Bold, style = androidx.compose.material3.MaterialTheme.typography.labelMedium)
             }
         }
 
@@ -1094,7 +1087,7 @@ fun HistoryAndBookmarksPanel(
                             else -> "ابحث في الصفحات المحفوظة..."
                         },
                         color = currentSecText,
-                        fontSize = 12.sp
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall
                     )
                 },
                 modifier = Modifier.weight(1f),
@@ -1177,7 +1170,7 @@ fun HistoryAndBookmarksPanel(
                             ) {
                                 Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("مسح كامل السجل", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("مسح كامل السجل", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -1222,7 +1215,7 @@ fun HistoryAndBookmarksPanel(
                             ) {
                                 Icon(Icons.Default.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("حذف كافة الصفحات", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("حذف كافة الصفحات", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -1294,17 +1287,16 @@ fun BookmarkRow(
                     text = bookmark.title,
                     color = currentText,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
+                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = bookmark.url,
                     color = currentSecText,
-                    fontSize = 11.sp,
+                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = LocalTextStyle.current.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr)
                 )
             }
 
@@ -1364,23 +1356,22 @@ fun HistoryRow(
                     text = entry.title,
                     color = currentText,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
+                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = entry.url,
                     color = currentSecText,
-                    fontSize = 11.sp,
+                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = LocalTextStyle.current.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr)
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = dateString,
                     color = currentAccent,
-                    fontSize = 9.sp
+                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall
                 )
             }
 
@@ -1440,17 +1431,16 @@ fun SavedPageRow(
                     text = page.title,
                     color = currentText,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
+                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = page.url,
                     color = currentSecText,
-                    fontSize = 11.sp,
+                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    style = LocalTextStyle.current.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr)
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1458,13 +1448,13 @@ fun SavedPageRow(
                         text = "محفوظة دون اتصال",
                         color = Color(0xFF10B981),
                         fontWeight = FontWeight.Bold,
-                        fontSize = 9.sp
+                        style = androidx.compose.material3.MaterialTheme.typography.labelSmall
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
                         text = dateString,
                         color = currentSecText.copy(alpha = 0.6f),
-                        fontSize = 9.sp
+                        style = androidx.compose.material3.MaterialTheme.typography.labelSmall
                     )
                 }
             }
@@ -1505,7 +1495,7 @@ fun TabsManagerPanel(
                 text = "علامات التبويب المفتوحة (${tabs.size})",
                 color = currentText,
                 fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
+                style = androidx.compose.material3.MaterialTheme.typography.titleMedium
             )
 
             Button(
@@ -1515,7 +1505,7 @@ fun TabsManagerPanel(
             ) {
                 Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("تبويب جديد", fontSize = 12.sp)
+                Text("تبويب جديد", style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
             }
         }
 
@@ -1538,7 +1528,7 @@ fun TabsManagerPanel(
                         ),
                     colors = CardDefaults.cardColors(
                         containerColor = if (isActive) {
-                            if (isIncognito) IncognitoTabActiveBg else TabActiveBg
+                            if (isIncognito) IncognitoTabActiveBg else MaterialTheme.colorScheme.primaryContainer
                         } else {
                             if (isIncognito) currentLightElement.copy(alpha = 0.5f) else Color.White
                         }
@@ -1563,17 +1553,16 @@ fun TabsManagerPanel(
                                 text = tab.title,
                                 color = currentText,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp,
+                                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
                                 text = tab.url,
                                 color = currentSecText,
-                                fontSize = 11.sp,
+                                style = androidx.compose.material3.MaterialTheme.typography.labelMedium.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                style = LocalTextStyle.current.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr)
                             )
                         }
 
@@ -1582,7 +1571,7 @@ fun TabsManagerPanel(
                                 imageVector = Icons.Default.Close,
                                 contentDescription = "إغلاق",
                                 tint = if (isActive) {
-                                    if (isIncognito) IncognitoTabActiveText else TabActiveText
+                                    if (isIncognito) IncognitoTabActiveText else MaterialTheme.colorScheme.onPrimaryContainer
                                 } else {
                                     currentText
                                 }
@@ -1621,14 +1610,14 @@ fun EmptyStateLayout(
             text = title,
             color = currentText,
             fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
+            style = androidx.compose.material3.MaterialTheme.typography.titleMedium,
             textAlign = TextAlign.Center
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = subtitle,
             color = currentSecText,
-            fontSize = 12.sp,
+            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
             textAlign = TextAlign.Center,
             lineHeight = 18.sp
         )
@@ -1675,7 +1664,7 @@ fun VpnSettingsPanel(
                     text = "جسر التشفير الآمن (VPN)",
                     color = currentText,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp
+                    style = androidx.compose.material3.MaterialTheme.typography.titleLarge
                 )
             }
 
@@ -1696,7 +1685,7 @@ fun VpnSettingsPanel(
                 Text(
                     text = if (isConnected) "نشط ومؤمن" else "غير متصل",
                     color = if (isConnected) currentAccent else currentSecText,
-                    fontSize = 11.sp,
+                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -1749,7 +1738,7 @@ fun VpnSettingsPanel(
                 Text(
                     text = if (isConnected) "انقر للقطع ووقف التشفير" else "انقر للتشغيل وبدء التصفح المشفر",
                     color = currentSecText,
-                    fontSize = 12.sp,
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -1762,7 +1751,7 @@ fun VpnSettingsPanel(
             text = "إحصائيات الاتصال الفعلي",
             color = currentText,
             fontWeight = FontWeight.Bold,
-            fontSize = 14.sp
+            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -1782,14 +1771,13 @@ fun VpnSettingsPanel(
                 Column(
                     modifier = Modifier.padding(12.dp)
                 ) {
-                    Text("عنوان الـ IP", color = currentSecText, fontSize = 10.sp)
+                    Text("عنوان الـ IP", color = currentSecText, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = if (isConnected) selectedServer.ipAddress else "---.---.---.---",
                         color = currentText,
-                        fontSize = 12.6.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr),
                         fontWeight = FontWeight.Bold,
-                        style = androidx.compose.ui.text.TextStyle(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr)
                     )
                 }
             }
@@ -1805,14 +1793,14 @@ fun VpnSettingsPanel(
                 Column(
                     modifier = Modifier.padding(12.dp)
                 ) {
-                    Text("سرعة الاستجابة", color = currentSecText, fontSize = 10.sp)
+                    Text("سرعة الاستجابة", color = currentSecText, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = if (isConnected) "$ping ms" else "--- ms",
                         color = if (isConnected) {
                             if (ping < 35) SecureGreen else if (ping < 90) currentAccent else Color.Yellow
                         } else currentSecText,
-                        fontSize = 13.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -1829,12 +1817,12 @@ fun VpnSettingsPanel(
                 Column(
                     modifier = Modifier.padding(12.dp)
                 ) {
-                    Text("بيانات مشفرة", color = currentSecText, fontSize = 10.sp)
+                    Text("بيانات مشفرة", color = currentSecText, style = androidx.compose.material3.MaterialTheme.typography.labelSmall)
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = if (isConnected) String.format(Locale.US, "%.3f MB", dataUsage) else "0.000 MB",
                         color = currentText,
-                        fontSize = 13.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -1848,7 +1836,7 @@ fun VpnSettingsPanel(
             text = "اختر خادم التشفير الجغرافي",
             color = currentText,
             fontWeight = FontWeight.Bold,
-            fontSize = 14.sp
+            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
         )
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -1874,7 +1862,7 @@ fun VpnSettingsPanel(
                 ) {
                     Text(
                         text = server.flag,
-                        fontSize = 20.sp
+                        style = androidx.compose.material3.MaterialTheme.typography.headlineSmall
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
@@ -1882,13 +1870,12 @@ fun VpnSettingsPanel(
                             text = server.name,
                             color = currentText,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 13.5.sp
+                            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
                         )
                         Text(
                             text = "منفذ: ${server.ipAddress}:${server.port}",
                             color = currentSecText,
-                            fontSize = 11.sp,
-                            style = androidx.compose.ui.text.TextStyle(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr)
+                            style = androidx.compose.material3.MaterialTheme.typography.labelMedium.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr),
                         )
                     }
 
@@ -1907,7 +1894,7 @@ fun VpnSettingsPanel(
                             text = server.speed,
                             color = currentAccent,
                             fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
+                            style = androidx.compose.material3.MaterialTheme.typography.labelMedium
                         )
                     }
                 }
@@ -1952,7 +1939,7 @@ fun AdBlockerSettingsPanel(
                     text = "درع حظر الإعلانات والتعقب",
                     color = currentText,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp
+                    style = androidx.compose.material3.MaterialTheme.typography.titleLarge
                 )
             }
 
@@ -1973,7 +1960,7 @@ fun AdBlockerSettingsPanel(
                 Text(
                     text = if (isEnabled) "الدرع نشط" else "الدرع متوقف",
                     color = if (isEnabled) currentAccent else currentSecText,
-                    fontSize = 11.sp,
+                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Bold
                 )
             }
@@ -2026,7 +2013,7 @@ fun AdBlockerSettingsPanel(
                 Text(
                     text = if (isEnabled) "اضغط هنا لتعطيل مانع الإعلانات" else "اضغط هنا لتفعيل مانع الإعلانات الذكي",
                     color = currentSecText,
-                    fontSize = 12.sp,
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Medium
                 )
             }
@@ -2054,12 +2041,12 @@ fun AdBlockerSettingsPanel(
                         text = "الإعلانات المحجوبة على الصفحة الحالية",
                         color = currentText,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 13.sp
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
                     )
                     Text(
                         text = "يقوم النظام بتصفية الموارد لتسريع التصفح",
                         color = currentSecText,
-                        fontSize = 11.sp
+                        style = androidx.compose.material3.MaterialTheme.typography.labelMedium
                     )
                 }
 
@@ -2076,7 +2063,7 @@ fun AdBlockerSettingsPanel(
                         text = blockedCount.toString(),
                         color = if (blockedCount > 0) Color.Red else currentSecText,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp
+                        style = androidx.compose.material3.MaterialTheme.typography.headlineSmall
                     )
                 }
             }
@@ -2089,7 +2076,7 @@ fun AdBlockerSettingsPanel(
             text = "مزايا درع التصفية المتقدم",
             color = currentText,
             fontWeight = FontWeight.Bold,
-            fontSize = 14.sp
+            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -2119,7 +2106,7 @@ fun AdBlockerSettingsPanel(
                     Text(
                         text = advantage,
                         color = currentText,
-                        fontSize = 12.5.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.Medium
                     )
                 }
@@ -2170,7 +2157,7 @@ fun DownloadsManagerPanel(
                     text = "مدير التحميلات والملفات",
                     color = currentText,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 17.sp
+                    style = androidx.compose.material3.MaterialTheme.typography.titleLarge
                 )
             }
 
@@ -2185,7 +2172,7 @@ fun DownloadsManagerPanel(
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(text = "مسح الكل", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(text = "مسح الكل", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -2209,7 +2196,7 @@ fun DownloadsManagerPanel(
                     text = "إضافة تنزيل مباشر يدوياً",
                     color = currentText,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 12.sp
+                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
@@ -2222,7 +2209,7 @@ fun DownloadsManagerPanel(
                         placeholder = { 
                             Text(
                                 "أدخل رابط مباشر (مثال: file.mp4)...", 
-                                fontSize = 11.sp, 
+                                style = androidx.compose.material3.MaterialTheme.typography.labelMedium, 
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             ) 
@@ -2258,7 +2245,7 @@ fun DownloadsManagerPanel(
                         Text(
                             text = "تنزيل",
                             color = if (isIncognito) Color.Black else Color.White,
-                            fontSize = 12.sp,
+                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -2292,13 +2279,13 @@ fun DownloadsManagerPanel(
                         text = "لا توجد أي تنزيلات حالياً",
                         color = currentText,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = "سيظهر تفاصيل الملفات، وسرعة تنزيلها، ونسب تقدمها تلقائياً هنا في اللحظة التي تضغط فيها على محتوى تنزيل بمواقع الويب!",
                         color = currentSecText,
-                        fontSize = 11.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                         textAlign = TextAlign.Center,
                         lineHeight = 16.sp
                     )
@@ -2406,7 +2393,7 @@ fun DownloadRowItem(
                         text = item.fileName,
                         color = currentText,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 12.5.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -2414,10 +2401,9 @@ fun DownloadRowItem(
                     Text(
                         text = item.url,
                         color = currentSecText,
-                        fontSize = 10.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.labelSmall.copy(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        style = androidx.compose.ui.text.TextStyle(textDirection = androidx.compose.ui.text.style.TextDirection.Ltr)
                     )
                 }
 
@@ -2516,7 +2502,7 @@ fun DownloadRowItem(
                 Text(
                     text = "${formatBytes(item.downloadedBytes)} / ${formatBytes(item.totalBytes)}",
                     color = currentSecText,
-                    fontSize = 10.5.sp,
+                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                     fontWeight = FontWeight.Medium
                 )
 
@@ -2544,7 +2530,7 @@ fun DownloadRowItem(
                             "CANCELED" -> Color.Red
                             else -> currentSecText
                         },
-                        fontSize = 10.5.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -2631,13 +2617,13 @@ fun TranslationPanel(
                 Text(
                     text = "مساعد الترجمة الذكي",
                     color = currentText,
-                    fontSize = 18.sp,
+                    style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "ترجمة المواقع والنصوص الفورية بدعم من الذكاء الاصطناعي",
                     color = currentSecText,
-                    fontSize = 11.5.sp
+                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium
                 )
             }
         }
@@ -2670,7 +2656,7 @@ fun TranslationPanel(
                     Text(
                         text = "ترجمة صفحة الويب الحالية للعربية",
                         color = currentText,
-                        fontSize = 14.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -2680,7 +2666,7 @@ fun TranslationPanel(
                 Text(
                     text = "سيتم تحويل الموقع المعروض حالياً بالكامل ليعمل باللغة العربية مع دعم تدوير النصوص التفاعلية RTL تلقائياً وبسهولة.",
                     color = currentSecText,
-                    fontSize = 11.5.sp,
+                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                     lineHeight = 16.sp
                 )
 
@@ -2708,7 +2694,7 @@ fun TranslationPanel(
                     Text(
                         text = "ترجمة الموقع الحالي كاملاً",
                         color = if (isIncognito) Color.Black else Color.White,
-                        fontSize = 13.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -2730,7 +2716,7 @@ fun TranslationPanel(
             Text(
                 text = "الترجمة الفورية للنصوص",
                 color = currentText,
-                fontSize = 14.sp,
+                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold
             )
             Spacer(modifier = Modifier.height(8.dp))
@@ -2752,7 +2738,7 @@ fun TranslationPanel(
                         sourceLang = "Auto"
                         targetLang = "Arabic"
                     },
-                    label = { Text(config1, fontSize = 10.sp) },
+                    label = { Text(config1, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = currentAccent.copy(alpha = 0.15f),
                         selectedLabelColor = currentAccent
@@ -2767,7 +2753,7 @@ fun TranslationPanel(
                         sourceLang = "English"
                         targetLang = "Arabic"
                     },
-                    label = { Text(config2, fontSize = 10.sp) },
+                    label = { Text(config2, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = currentAccent.copy(alpha = 0.15f),
                         selectedLabelColor = currentAccent
@@ -2782,7 +2768,7 @@ fun TranslationPanel(
                         sourceLang = "Arabic"
                         targetLang = "English"
                     },
-                    label = { Text(config3, fontSize = 10.sp) },
+                    label = { Text(config3, style = androidx.compose.material3.MaterialTheme.typography.labelSmall) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = currentAccent.copy(alpha = 0.15f),
                         selectedLabelColor = currentAccent
@@ -2803,7 +2789,7 @@ fun TranslationPanel(
                 placeholder = {
                     Text(
                         text = "اكتب أو الصق النص هنا للترجمة...",
-                        fontSize = 12.5.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                         color = currentSecText
                     )
                 },
@@ -2889,7 +2875,7 @@ fun TranslationPanel(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "جاري الترجمة بذكاء Gemini...",
-                        fontSize = 12.5.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                         fontWeight = FontWeight.SemiBold
                     )
                 } else {
@@ -2902,7 +2888,7 @@ fun TranslationPanel(
                     Text(
                         text = "ترجمة النص الآن ✨",
                         color = if (isIncognito) Color.Black else Color.White,
-                        fontSize = 13.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -2925,7 +2911,7 @@ fun TranslationPanel(
                         Text(
                             text = "جاري التواصل مع خادم الترجمة فائق السرعة...",
                             color = currentSecText,
-                            fontSize = 11.sp
+                            style = androidx.compose.material3.MaterialTheme.typography.labelMedium
                         )
                     }
                 }
@@ -2957,7 +2943,7 @@ fun TranslationPanel(
                             Text(
                                 text = "النص المترجم:",
                                 color = currentAccent,
-                                fontSize = 12.sp,
+                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold
                             )
 
@@ -2984,7 +2970,7 @@ fun TranslationPanel(
                         Text(
                             text = translatedResult,
                             color = currentText,
-                            fontSize = 13.5.sp,
+                            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                             lineHeight = 19.sp,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -3016,7 +3002,7 @@ fun TranslationPanel(
                         Text(
                             text = translationError!!,
                             color = Color(0xFFC81E1E),
-                            fontSize = 11.5.sp,
+                            style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                             lineHeight = 16.sp
                         )
                     }
@@ -3098,13 +3084,13 @@ fun ImagesPanel(
                 Text(
                     text = "مستعرض ومعرض الصور",
                     color = currentText,
-                    fontSize = 17.sp,
+                    style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "عرض وتنزيل وحفظ جميع صور الصفحة والميديا المُنزلة",
                     color = currentSecText,
-                    fontSize = 11.sp
+                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium
                 )
             }
         }
@@ -3141,7 +3127,7 @@ fun ImagesPanel(
                     modifier = Modifier.size(15.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("صور الصفحة الحالية", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("صور الصفحة الحالية", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
             }
 
             // Tab 2: Downloaded
@@ -3165,7 +3151,7 @@ fun ImagesPanel(
                     modifier = Modifier.size(15.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("الصور المُنزلّة (${downloadedImages.size})", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                Text("الصور المُنزلّة (${downloadedImages.size})", style = androidx.compose.material3.MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -3188,7 +3174,7 @@ fun ImagesPanel(
                         Text(
                             text = "تم العثور على (${extractedImages.size}) صورة بالصفحة- RLT",
                             color = currentText,
-                            fontSize = 12.5.sp,
+                            style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold
                         )
 
@@ -3215,7 +3201,7 @@ fun ImagesPanel(
                                     modifier = Modifier.size(14.dp)
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("استخراج الصور", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("استخراج الصور", style = androidx.compose.material3.MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -3235,7 +3221,7 @@ fun ImagesPanel(
                                 Text(
                                     text = "جاري مسح صفحة الويب واستخراج الصور والميديا...",
                                     color = currentSecText,
-                                    fontSize = 11.5.sp
+                                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium
                                 )
                             }
                         }
@@ -3261,14 +3247,14 @@ fun ImagesPanel(
                                 Text(
                                     text = "لا توجد صور مستخرجة حالياً",
                                     color = currentText,
-                                    fontSize = 13.5.sp,
+                                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
                                     text = "اضغط على زر الاستخراج لمسح علامة التبويب الحالية واسترجاع كافة الصور المعروضة بداخلها بضغطة واحدة وعرضها بوضوح.",
                                     color = currentSecText,
-                                    fontSize = 11.sp,
+                                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                                     textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                     lineHeight = 17.sp
                                 )
@@ -3331,14 +3317,14 @@ fun ImagesPanel(
                             Text(
                                 text = "لم تقم بتنزيل أي صور بعد",
                                 color = currentText,
-                                fontSize = 13.5.sp,
+                                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                                 fontWeight = FontWeight.Bold
                             )
                             Spacer(modifier = Modifier.height(6.dp))
                             Text(
                                 text = "الصور التي تقوم بتنزيلها عبر المتصفح ستظهر تلقائياً هنا في معرض آمن لسهولة الوصول والمشاهدة والمشاركة في أي وقت.",
                                 color = currentSecText,
-                                fontSize = 11.sp,
+                                style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                                 lineHeight = 17.sp
                             )
@@ -3383,7 +3369,7 @@ fun ImagesPanel(
                                         Text(
                                             text = item.fileName,
                                             color = Color.White,
-                                            fontSize = 9.sp,
+                                            style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
                                             maxLines = 1,
                                             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -3517,7 +3503,7 @@ fun ImmersiveImageViewerDialog(
                     Text(
                         text = title,
                         color = Color.White,
-                        fontSize = 14.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         maxLines = 2,
@@ -3527,7 +3513,7 @@ fun ImmersiveImageViewerDialog(
                     Text(
                         text = "رابط الصورة: $url",
                         color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 11.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                         maxLines = 1,
                         overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -3608,13 +3594,13 @@ fun VideoPanel(
                 Text(
                     text = "مستخرج ومشغل الفيديو الذكي",
                     color = currentText,
-                    fontSize = 17.sp,
+                    style = androidx.compose.material3.MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
                     text = "اكتشف الفيديوهات من صفحات الويب وشغلها مع دعم البث والتحميل الذكي",
                     color = currentSecText,
-                    fontSize = 11.sp
+                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium
                 )
             }
         }
@@ -3651,7 +3637,7 @@ fun VideoPanel(
                     modifier = Modifier.size(15.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("المكتشفة بالصفحة", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("المكتشفة بالصفحة", style = androidx.compose.material3.MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
             }
 
             // Tab 2: Downloaded
@@ -3675,7 +3661,7 @@ fun VideoPanel(
                     modifier = Modifier.size(15.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("المحملة المكتملة (${downloadedVideos.size})", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("المحملة المكتملة (${downloadedVideos.size})", style = androidx.compose.material3.MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
             }
 
             // Tab 3: Custom Direct Link to play/stream
@@ -3699,7 +3685,7 @@ fun VideoPanel(
                     modifier = Modifier.size(15.dp)
                 )
                 Spacer(modifier = Modifier.width(6.dp))
-                Text("رابط البث", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("رابط البث", style = androidx.compose.material3.MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
             }
         }
 
@@ -3723,7 +3709,7 @@ fun VideoPanel(
                             Text(
                                 text = "مكتشف الفيديو تلقائياً (${extractedVideos.size})",
                                 color = currentText,
-                                fontSize = 12.5.sp,
+                                style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold
                             )
 
@@ -3750,7 +3736,7 @@ fun VideoPanel(
                                         modifier = Modifier.size(14.dp)
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("كشف الفيديوهات", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("كشف الفيديوهات", style = androidx.compose.material3.MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -3770,7 +3756,7 @@ fun VideoPanel(
                                     Text(
                                         text = "جاري مسح صفحة الويب الحالية عن ميديا ومشغلات فيديو مدمجة...",
                                         color = currentSecText,
-                                        fontSize = 11.5.sp
+                                        style = androidx.compose.material3.MaterialTheme.typography.labelMedium
                                     )
                                 }
                             }
@@ -3796,14 +3782,14 @@ fun VideoPanel(
                                     Text(
                                         text = "لا توجد فيديوهات مكتشفة حالياً",
                                         color = currentText,
-                                        fontSize = 13.5.sp,
+                                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.Bold
                                     )
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Text(
                                         text = "افتح أي موقع يحتوي على وسائط أو فيديوهات (مثل منصات الأخبار أو الترفيه)، ثم اضغط على زر الكشف لاستخراجها وتشغيلها بلمسة واحدة.",
                                         color = currentSecText,
-                                        fontSize = 11.sp,
+                                        style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                                         textAlign = TextAlign.Center,
                                         lineHeight = 17.sp
                                     )
@@ -3852,7 +3838,7 @@ fun VideoPanel(
                                                 Text(
                                                     text = video.title,
                                                     color = currentText,
-                                                    fontSize = 13.sp,
+                                                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                                                     fontWeight = FontWeight.Bold,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
@@ -3860,7 +3846,7 @@ fun VideoPanel(
                                                 Text(
                                                     text = video.url,
                                                     color = currentSecText,
-                                                    fontSize = 10.sp,
+                                                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
                                                 )
@@ -3921,14 +3907,14 @@ fun VideoPanel(
                                 Text(
                                     text = "لم تقم بتنزيل أي فيديوهات بعد",
                                     color = currentText,
-                                    fontSize = 13.5.sp,
+                                    style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
                                     text = "الفيديوهات وملفات الوسائط التي تحفظها من المواقع ستظهر تلقائياً هنا لتشغيلها بشكل فوري وبكامل دقتها بدون إنترنت.",
                                     color = currentSecText,
-                                    fontSize = 11.sp,
+                                    style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                                     textAlign = TextAlign.Center,
                                     lineHeight = 17.sp
                                 )
@@ -3977,7 +3963,7 @@ fun VideoPanel(
                                             Text(
                                                 text = item.fileName,
                                                 color = currentText,
-                                                fontSize = 13.sp,
+                                                style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                                                 fontWeight = FontWeight.Bold,
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
@@ -3985,7 +3971,7 @@ fun VideoPanel(
                                             Text(
                                                 text = "الحجم: ${(item.totalBytes / (1024 * 1024))} ميجا بايت",
                                                 color = currentSecText,
-                                                fontSize = 11.sp
+                                                style = androidx.compose.material3.MaterialTheme.typography.labelMedium
                                             )
                                         }
 
@@ -4028,7 +4014,7 @@ fun VideoPanel(
                         Text(
                             text = "تشغيل بث أو رابط فيديو مخصص مباشر",
                             color = currentText,
-                            fontSize = 14.sp,
+                            style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
                         )
@@ -4036,7 +4022,7 @@ fun VideoPanel(
                         Text(
                             text = "يدعم مشغل الفيديو الخاص بنا مجموعة واسعة من صيغ البث المباشر ومقاطع الفيديو من أي مخدم خارجي.",
                             color = currentSecText,
-                            fontSize = 11.sp,
+                            style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                             textAlign = TextAlign.Center,
                             lineHeight = 17.sp
                         )
@@ -4092,7 +4078,7 @@ fun VideoPanel(
                                 tint = if (isIncognito) Color.Black else Color.White
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("تشغيل الميديا فوراً", fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text("تشغيل الميديا فوراً", style = androidx.compose.material3.MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -4262,7 +4248,7 @@ fun ImmersiveVideoPlayerDialog(
                     Text(
                         text = title,
                         color = Color.White,
-                        fontSize = 14.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         maxLines = 2,
@@ -4272,7 +4258,7 @@ fun ImmersiveVideoPlayerDialog(
                     Text(
                         text = if (isEmbed) "إطار ميديا مدمج" else "بث مشغل مشفر مباشر",
                         color = currentAccent,
-                        fontSize = 11.sp,
+                        style = androidx.compose.material3.MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }
