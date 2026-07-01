@@ -96,6 +96,7 @@ fun WebBrowserScreen(
 
     val isAdBlockerEnabled by viewModel.isAdBlockerEnabled.collectAsState()
     val blockedAdsCount by viewModel.blockedAdsCount.collectAsState()
+    val errorMessage by viewModel.errorMessages.collectAsState()
 
     var showHistoryAndBookmarksSheet by remember { mutableStateOf(false) }
     var showTabsListSheet by remember { mutableStateOf(false) }
@@ -123,10 +124,20 @@ fun WebBrowserScreen(
     val currentTabActiveText = if (isIncognito) IncognitoTabActiveText else MaterialTheme.colorScheme.onPrimaryContainer
     val currentTabActiveBorder = if (isIncognito) IncognitoTabActiveBorder else MaterialTheme.colorScheme.primary
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let { msg ->
+            snackbarHostState.showSnackbar(msg)
+            viewModel.dismissError()
+        }
+    }
+
     Scaffold(
         modifier = modifier
             .fillMaxSize()
             .background(currentBg),
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             Column(
                 modifier = Modifier.background(currentFrost)

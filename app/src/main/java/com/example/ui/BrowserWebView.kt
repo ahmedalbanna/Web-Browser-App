@@ -154,6 +154,7 @@ fun BrowserWebView(
                             viewModel.setExtractedImages(urls)
                         } catch (e: Exception) {
                             e.printStackTrace()
+                            viewModel.showError("حدث خطأ أثناء استخراج الصور: ${e.localizedMessage}")
                         }
                     }
                 }, "AndroidImageExtractor")
@@ -175,12 +176,17 @@ fun BrowserWebView(
                             viewModel.setExtractedVideos(videos)
                         } catch (e: Exception) {
                             e.printStackTrace()
+                            viewModel.showError("حدث خطأ أثناء استخراج الفيديو: ${e.localizedMessage}")
                         }
                     }
                 }, "AndroidVideoExtractor")
 
                 setDownloadListener { url, userAgent, contentDisposition, mimetype, contentLength ->
-                    viewModel.startDownload(url, contentDisposition, mimetype, contentLength)
+                    try {
+                        viewModel.startDownload(url, contentDisposition, mimetype, contentLength)
+                    } catch (e: Exception) {
+                        viewModel.showError("فشل بدء التحميل: ${e.localizedMessage}")
+                    }
                 }
 
                 webViewClient = object : WebViewClient() {
@@ -216,6 +222,39 @@ fun BrowserWebView(
                             canGoBack = view?.canGoBack() ?: false,
                             canGoForward = view?.canGoForward() ?: false
                         )
+                    }
+
+                    override fun onReceivedError(
+                        view: WebView?,
+                        request: WebResourceRequest?,
+                        error: android.webkit.WebResourceError?
+                    ) {
+                        super.onReceivedError(view, request, error)
+                        if (request?.isForMainFrame == true) {
+                            val errorMessage = error?.description?.toString() ?: "Unknown error"
+                            viewModel.showError("تعذر تحميل الصفحة: $errorMessage")
+                        }
+                    }
+
+                    override fun onReceivedHttpError(
+                        view: WebView?,
+                        request: WebResourceRequest?,
+                        errorResponse: android.webkit.WebResourceResponse?
+                    ) {
+                        super.onReceivedHttpError(view, request, errorResponse)
+                        if (request?.isForMainFrame == true) {
+                            val statusCode = errorResponse?.statusCode ?: "Unknown"
+                            viewModel.showError("خطأ HTTP أثناء التحميل: $statusCode")
+                        }
+                    }
+
+                    override fun onReceivedSslError(
+                        view: WebView?,
+                        handler: android.webkit.SslErrorHandler?,
+                        error: android.net.http.SslError?
+                    ) {
+                        super.onReceivedSslError(view, handler, error)
+                        viewModel.showError("خطأ في شهادة الأمان (SSL)!")
                     }
 
                     override fun onPageFinished(view: WebView?, url: String?) {

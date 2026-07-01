@@ -79,6 +79,7 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
                 }
             } catch (e: Exception) {
                 // Fallback to defaults
+                showError("فشل في جلب الخوادم الوكيلة، تم استخدام الخوادم الافتراضية")
             }
         }
     }
@@ -172,6 +173,17 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
     // Image Browser / Extractor states
     private val _extractedImages = MutableStateFlow<List<String>>(emptyList())
     val extractedImages: StateFlow<List<String>> = _extractedImages.asStateFlow()
+
+    private val _errorMessages = MutableStateFlow<String?>(null)
+    val errorMessages: StateFlow<String?> = _errorMessages.asStateFlow()
+
+    fun showError(message: String) {
+        _errorMessages.value = message
+    }
+
+    fun dismissError() {
+        _errorMessages.value = null
+    }
 
     private val _isExtractingImages = MutableStateFlow(false)
     val isExtractingImages: StateFlow<Boolean> = _isExtractingImages.asStateFlow()
@@ -738,6 +750,7 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
                 }
             } catch (e: Exception) {
                 _translationError.value = "حدث خطأ أثناء الاتصال: ${e.localizedMessage}"
+                showError("فشل الترجمة: ${e.localizedMessage}")
             } finally {
                 _isTranslating.value = false
             }
