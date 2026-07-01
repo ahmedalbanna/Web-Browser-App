@@ -46,11 +46,39 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         )
 
     init {
+        fetchProxies()
         viewModelScope.launch {
             repository.allDownloads.first().forEach { item ->
                 if (item.status == "DOWNLOADING") {
                     repository.addDownload(item.copy(status = "PAUSED", speed = "موقف مؤقتاً"))
                 }
+            }
+        }
+    }
+
+    private fun fetchProxies() {
+        viewModelScope.launch {
+            try {
+                val response = ProxyApiClient.api.getProxies()
+                val newServers = response.data.mapNotNull { proxy ->
+                    if (proxy.country.isNullOrEmpty() || proxy.latency == null) return@mapNotNull null
+                    VpnServer(
+                        name = proxy.country,
+                        countryCode = proxy.country,
+                        flag = "🌐",
+                        ipAddress = proxy.ip,
+                        port = proxy.port,
+                        ping = proxy.latency.toInt(),
+                        speed = "High Mbps"
+                    )
+                }.filter { it.ping > 0 }.take(20)
+
+                if (newServers.isNotEmpty()) {
+                    _availableVpnServers.value = newServers
+                    _selectedVpnServer.value = newServers[0]
+                }
+            } catch (e: Exception) {
+                // Fallback to defaults
             }
         }
     }
@@ -73,6 +101,9 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
     // VPN States
     private val _isVpnConnected = MutableStateFlow(false)
     val isVpnConnected: StateFlow<Boolean> = _isVpnConnected.asStateFlow()
+
+    private val _availableVpnServers = MutableStateFlow(vpnServersList)
+    val availableVpnServers: StateFlow<List<VpnServer>> = _availableVpnServers.asStateFlow()
 
     private val _selectedVpnServer = MutableStateFlow(vpnServersList[0])
     val selectedVpnServer: StateFlow<VpnServer> = _selectedVpnServer.asStateFlow()
@@ -448,37 +479,27 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         }
     }
 
+    private var startVpnBytes = 0L
+
     fun toggleVpn() {
         val isNowConnected = !_isVpnConnected.value
         _isVpnConnected.value = isNowConnected
         if (isNowConnected) {
+            val server = _selectedVpnServer.value
+            ProxyHelper.applyProxy(server.ipAddress, server.port) {
+                viewModelScope.launch {
+                    _commands.emit(BrowserCommand.Reload)
+                }
+            }
             startVpnSimulation()
-            startRealVpnService()
         } else {
+            ProxyHelper.clearProxy {
+                viewModelScope.launch {
+                    _commands.emit(BrowserCommand.Reload)
+                }
+            }
             stopVpnSimulation()
-            stopRealVpnService()
         }
-        
-        // Reload page to simulate connection refresh over secure bridge
-        viewModelScope.launch {
-            _commands.emit(BrowserCommand.Reload)
-        }
-    }
-
-    private fun startRealVpnService() {
-        val context = getApplication<Application>().applicationContext
-        val intent = android.content.Intent(context, LocalVpnService::class.java).apply {
-            action = LocalVpnService.ACTION_CONNECT
-        }
-        context.startService(intent)
-    }
-
-    private fun stopRealVpnService() {
-        val context = getApplication<Application>().applicationContext
-        val intent = android.content.Intent(context, LocalVpnService::class.java).apply {
-            action = LocalVpnService.ACTION_DISCONNECT
-        }
-        context.startService(intent)
     }
 
     fun setVpnServer(server: VpnServer) {
@@ -486,27 +507,32 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         _simulatedPing.value = server.ping
         
         if (_isVpnConnected.value) {
+            ProxyHelper.applyProxy(server.ipAddress, server.port) {
+                viewModelScope.launch {
+                    _commands.emit(BrowserCommand.Reload)
+                }
+            }
             stopVpnSimulation()
             startVpnSimulation()
-            viewModelScope.launch {
-                _commands.emit(BrowserCommand.Reload)
-            }
         }
     }
 
     private fun startVpnSimulation() {
         vpnJob?.cancel()
+        val uid = android.os.Process.myUid()
+        startVpnBytes = android.net.TrafficStats.getUidRxBytes(uid) + android.net.TrafficStats.getUidTxBytes(uid)
+        
         vpnJob = viewModelScope.launch {
-            var count = _simulatedDataUsage.value
-            if (count == 0f) {
-                count = (1..4).random() + (0..9).random() / 10f
-            }
             val currentServer = _selectedVpnServer.value
             while (true) {
                 kotlinx.coroutines.delay(1000)
-                val increment = (5..65).random() / 1000f
-                count += increment
-                _simulatedDataUsage.value = count
+                val currentBytes = android.net.TrafficStats.getUidRxBytes(uid) + android.net.TrafficStats.getUidTxBytes(uid)
+                val diff = (currentBytes - startVpnBytes).coerceAtLeast(0L)
+                // Default minimum simulated usage to show it's active even without much browsing
+                val fallbackUsage = _simulatedDataUsage.value + ((5..65).random() / 1000f)
+                val actualUsageMb = diff / (1024f * 1024f)
+                _simulatedDataUsage.value = if (actualUsageMb > 0f) actualUsageMb else fallbackUsage
+                
                 val fluctuation = (-3..3).random()
                 _simulatedPing.value = (currentServer.ping + fluctuation).coerceAtLeast(4)
             }

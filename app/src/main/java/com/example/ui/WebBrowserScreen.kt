@@ -92,17 +92,7 @@ fun WebBrowserScreen(
     val selectedVpnServer by viewModel.selectedVpnServer.collectAsState()
     val simulatedPing by viewModel.simulatedPing.collectAsState()
     val simulatedDataUsage by viewModel.simulatedDataUsage.collectAsState()
-    
     val context = androidx.compose.ui.platform.LocalContext.current
-    val vpnPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-        contract = androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            viewModel.toggleVpn()
-        } else {
-            android.widget.Toast.makeText(context, "لم يتم منح إذن VPN", android.widget.Toast.LENGTH_SHORT).show()
-        }
-    }
 
     val isAdBlockerEnabled by viewModel.isAdBlockerEnabled.collectAsState()
     val blockedAdsCount by viewModel.blockedAdsCount.collectAsState()
@@ -806,10 +796,11 @@ fun WebBrowserScreen(
             containerColor = currentMatte,
             tonalElevation = 16.dp,
         ) {
+            val availableServers by viewModel.availableVpnServers.collectAsState()
             VpnSettingsPanel(
                 isConnected = isVpnConnected,
                 selectedServer = selectedVpnServer,
-                servers = vpnServersList,
+                servers = availableServers,
                 ping = simulatedPing,
                 dataUsage = simulatedDataUsage,
                 isIncognito = isIncognito,
@@ -818,18 +809,7 @@ fun WebBrowserScreen(
                 currentText = currentText,
                 currentSecText = currentSecText,
                 currentBorder = currentBorder,
-                onToggleVpn = { 
-                    if (!isVpnConnected) {
-                        val vpnIntent = android.net.VpnService.prepare(context)
-                        if (vpnIntent != null) {
-                            vpnPermissionLauncher.launch(vpnIntent)
-                        } else {
-                            viewModel.toggleVpn()
-                        }
-                    } else {
-                        viewModel.toggleVpn()
-                    }
-                },
+                onToggleVpn = { viewModel.toggleVpn() },
                 onSelectServer = { viewModel.setVpnServer(it) }
             )
         }
