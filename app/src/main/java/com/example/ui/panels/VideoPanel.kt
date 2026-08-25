@@ -639,6 +639,7 @@ fun ImmersiveVideoPlayerDialog(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val isEmbed = url.contains("youtube.com") || url.contains("youtu.be") || url.contains("vimeo.com")
+    var isBackgroundAudioEnabled by remember { mutableStateOf(false) }
 
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onDismiss,
@@ -684,7 +685,15 @@ fun ImmersiveVideoPlayerDialog(
                         setMediaItem(MediaItem.fromUri(url))
                         prepare()
                         playWhenReady = true
+                        // Keep playing when app bg if enabled (handled via lifecycle)
                     }
+                }
+                // Background audio toggle — keep player playing when PiP/background
+                DisposableEffect(isBackgroundAudioEnabled) {
+                    if (isBackgroundAudioEnabled) {
+                        exoPlayer.playWhenReady = true
+                    }
+                    onDispose {}
                 }
 
                 DisposableEffect(exoPlayer) {
@@ -709,7 +718,7 @@ fun ImmersiveVideoPlayerDialog(
                 )
             }
 
-            // Top Control Overlay Header bar
+            // Top Control Overlay Header bar — Milestone 4 PiP + background audio
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -729,6 +738,53 @@ fun ImmersiveVideoPlayerDialog(
                         contentDescription = "إغلاق",
                         tint = Color.White
                     )
+                }
+
+                // PiP + Background audio controls (center)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // PiP button
+                    IconButton(
+                        onClick = {
+                            try {
+                                val activity = context as? android.app.Activity
+                                if (activity != null && android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                    val params = android.app.PictureInPictureParams.Builder()
+                                        .setAspectRatio(android.util.Rational(16, 9))
+                                        .build()
+                                    activity.enterPictureInPictureMode(params)
+                                } else {
+                                    android.widget.Toast.makeText(context, "وضع الصورة داخل الصورة غير مدعوم", android.widget.Toast.LENGTH_SHORT).show()
+                                }
+                            } catch (e: Exception) {
+                                android.widget.Toast.makeText(context, "فشل PiP: ${e.localizedMessage}", android.widget.Toast.LENGTH_SHORT).show()
+                            }
+                        },
+                        modifier = Modifier
+                            .background(Color.White.copy(alpha = 0.15f), CircleShape)
+                            .size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PictureInPictureAlt,
+                            contentDescription = "صورة داخل صورة",
+                            tint = Color.White
+                        )
+                    }
+                    // Background audio toggle
+                    IconButton(
+                        onClick = { isBackgroundAudioEnabled = !isBackgroundAudioEnabled },
+                        modifier = Modifier
+                            .background(
+                                if (isBackgroundAudioEnabled) currentAccent.copy(alpha = 0.3f) else Color.White.copy(alpha = 0.15f),
+                                CircleShape
+                            )
+                            .size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isBackgroundAudioEnabled) Icons.Default.MusicNote else Icons.Default.MusicOff,
+                            contentDescription = "صوت الخلفية",
+                            tint = if (isBackgroundAudioEnabled) currentAccent else Color.White
+                        )
+                    }
                 }
 
                 if (!isEmbed) {

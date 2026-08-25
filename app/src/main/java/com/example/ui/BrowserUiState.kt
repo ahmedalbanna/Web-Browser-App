@@ -25,5 +25,13 @@ data class BrowserUiState(
     val translatedResult: String = "",
     val translationError: String? = null,
     val isExtractingImages: Boolean = false,
-    val isExtractingVideos: Boolean = false
+    val isExtractingVideos: Boolean = false,
+    // Milestone 4 — v1.3 polish
+    val selectedSearchEngine: SearchEngine = SearchEngine.GOOGLE,
+    val isReaderMode: Boolean = false,
+    val textZoom: Int = 100,
+    val isFindBarVisible: Boolean = false,
+    val findQuery: String = "",
+    val findActiveMatch: Int = 0,
+    val findMatchCount: Int = 0
 )

@@ -260,7 +260,67 @@ class WebBrowserViewModel(
         _isExtractingVideos.value = false
     }
 
-    // Consolidated UI state — Milestone 3 v1.2: replaces 12+ scattered StateFlows with single source
+    // Milestone 4 — v1.3 Features & Polish
+    private val _selectedSearchEngine = MutableStateFlow(SearchEngine.GOOGLE)
+    val selectedSearchEngine: StateFlow<SearchEngine> = _selectedSearchEngine.asStateFlow()
+
+    private val _isReaderMode = MutableStateFlow(false)
+    val isReaderMode: StateFlow<Boolean> = _isReaderMode.asStateFlow()
+
+    private val _textZoom = MutableStateFlow(100)
+    val textZoom: StateFlow<Int> = _textZoom.asStateFlow()
+
+    private val _isFindBarVisible = MutableStateFlow(false)
+    val isFindBarVisible: StateFlow<Boolean> = _isFindBarVisible.asStateFlow()
+
+    private val _findQuery = MutableStateFlow("")
+    val findQuery: StateFlow<String> = _findQuery.asStateFlow()
+
+    private val _findActiveMatch = MutableStateFlow(0)
+    val findActiveMatch: StateFlow<Int> = _findActiveMatch.asStateFlow()
+
+    private val _findMatchCount = MutableStateFlow(0)
+    val findMatchCount: StateFlow<Int> = _findMatchCount.asStateFlow()
+
+    fun setSearchEngine(engine: SearchEngine) {
+        _selectedSearchEngine.value = engine
+    }
+
+    fun toggleReaderMode() {
+        _isReaderMode.value = !_isReaderMode.value
+        viewModelScope.launch { _commands.emit(BrowserCommand.ToggleReaderMode) }
+    }
+
+    fun setTextZoom(zoom: Int) {
+        val clamped = zoom.coerceIn(50, 300)
+        _textZoom.value = clamped
+        viewModelScope.launch { _commands.emit(BrowserCommand.SetTextZoom(clamped)) }
+    }
+
+    fun showFindBar() { _isFindBarVisible.value = true }
+    fun hideFindBar() {
+        _isFindBarVisible.value = false
+        _findQuery.value = ""
+        _findActiveMatch.value = 0
+        _findMatchCount.value = 0
+        viewModelScope.launch { _commands.emit(BrowserCommand.ClearFind) }
+    }
+    fun setFindQuery(query: String) {
+        _findQuery.value = query
+        if (query.isNotEmpty()) {
+            viewModelScope.launch { _commands.emit(BrowserCommand.FindInPage(query)) }
+        } else {
+            viewModelScope.launch { _commands.emit(BrowserCommand.ClearFind) }
+        }
+    }
+    fun findNext() { viewModelScope.launch { _commands.emit(BrowserCommand.FindNext) } }
+    fun findPrevious() { viewModelScope.launch { _commands.emit(BrowserCommand.FindPrevious) } }
+    fun updateFindMatches(active: Int, count: Int) {
+        _findActiveMatch.value = active
+        _findMatchCount.value = count
+    }
+
+    // Consolidated UI state — Milestone 3 v1.2 + Milestone 4 v1.3
     val uiState: StateFlow<BrowserUiState> = run {
         @Suppress("UNCHECKED_CAST")
         val part1 = combine(
@@ -276,7 +336,13 @@ class WebBrowserViewModel(
                 _isTranslating, _translatedResult, _translationError, _isExtractingImages, _isExtractingVideos
             )
         ) { args: Array<Any?> -> args.toList() }
-        combine(part1, part2) { p1, p2 ->
+        @Suppress("UNCHECKED_CAST")
+        val part3 = combine(
+            listOf<Flow<Any?>>(
+                _selectedSearchEngine, _isReaderMode, _textZoom, _isFindBarVisible, _findQuery, _findActiveMatch, _findMatchCount
+            )
+        ) { args: Array<Any?> -> args.toList() }
+        combine(part1, part2, part3) { p1, p2, p3 ->
             @Suppress("UNCHECKED_CAST")
             BrowserUiState(
                 isIncognito = p1[0] as Boolean,
@@ -298,7 +364,14 @@ class WebBrowserViewModel(
                 translatedResult = p2[6] as String,
                 translationError = p2[7] as String?,
                 isExtractingImages = p2[8] as Boolean,
-                isExtractingVideos = p2[9] as Boolean
+                isExtractingVideos = p2[9] as Boolean,
+                selectedSearchEngine = p3[0] as SearchEngine,
+                isReaderMode = p3[1] as Boolean,
+                textZoom = p3[2] as Int,
+                isFindBarVisible = p3[3] as Boolean,
+                findQuery = p3[4] as String,
+                findActiveMatch = p3[5] as Int,
+                findMatchCount = p3[6] as Int
             )
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BrowserUiState(activeTabId = _activeTabId.value))
     }
@@ -371,12 +444,7 @@ class WebBrowserViewModel(
         } else if (cleanInput.contains(".") && !cleanInput.contains(" ")) {
             "https://$cleanInput"
         } else {
-            val encodedQuery = try {
-                URLEncoder.encode(cleanInput, "UTF-8")
-            } catch (e: Exception) {
-                cleanInput
-            }
-            "https://www.google.com/search?q=$encodedQuery"
+            _selectedSearchEngine.value.buildSearchUrl(cleanInput)
         }
 
         // Update selected tab URL
@@ -727,10 +795,10 @@ class WebBrowserViewModel(
         activeDownloadJobs.remove(id)
         viewModelScope.launch {
             val foundItem = allDownloads.value.find { it.id == id } ?: return@launch
-            // If already completed/canceled, ignore
             if (foundItem.status != "DOWNLOADING") return@launch
             val updated = foundItem.copy(status = "PAUSED", speed = "موقف مؤقتاً")
             repository.addDownload(updated)
+            try { DownloadNotificationHelper.cancel(getApplication(), id) } catch (_: Exception) {}
         }
     }
 
@@ -751,7 +819,7 @@ class WebBrowserViewModel(
             val foundItem = allDownloads.value.find { it.id == id } ?: return@launch
             val updated = foundItem.copy(status = "CANCELED", speed = "ملغى")
             repository.addDownload(updated)
-            // delete partial file
+            try { DownloadNotificationHelper.cancel(getApplication(), id) } catch (_: Exception) {}
             try {
                 val ctx = getApplication<Application>()
                 val f = java.io.File(java.io.File(ctx.filesDir, "downloads"), foundItem.fileName)
@@ -764,6 +832,7 @@ class WebBrowserViewModel(
         activeDownloadJobs[download.id]?.cancel()
         activeDownloadJobs.remove(download.id)
         viewModelScope.launch {
+            try { DownloadNotificationHelper.cancel(getApplication(), download.id) } catch (_: Exception) {}
             try {
                 val ctx = getApplication<Application>()
                 val f = java.io.File(java.io.File(ctx.filesDir, "downloads"), download.fileName)
@@ -774,7 +843,7 @@ class WebBrowserViewModel(
     }
 
     fun clearAllDownloads() {
-        activeDownloadJobs.forEach { (_, job) -> job.cancel() }
+        activeDownloadJobs.forEach { (id, job) -> job.cancel(); try { DownloadNotificationHelper.cancel(getApplication(), id) } catch (_: Exception) {} }
         activeDownloadJobs.clear()
         viewModelScope.launch {
             try {
@@ -793,6 +862,14 @@ class WebBrowserViewModel(
             val appCtx = getApplication<Application>()
             val downloadDir = java.io.File(appCtx.filesDir, "downloads").apply { if (!exists()) mkdirs() }
             val destFile = resolveDestFile(downloadDir, item.fileName)
+            val id = item.id
+            // If resolver created a unique name, update DB
+            if (destFile.name != item.fileName) {
+                val curForName = allDownloads.value.find { it.id == id }
+                if (curForName != null && curForName.fileName != destFile.name) {
+                    repository.addDownload(curForName.copy(fileName = destFile.name))
+                }
+            }
 
             // If this is a resume, we may have partial file already
             var downloaded = if (item.downloadedBytes > 0 && destFile.exists()) {
@@ -803,7 +880,6 @@ class WebBrowserViewModel(
                 0L
             }
             var totalBytes = item.totalBytes
-            val id = item.id
 
             var input: java.io.InputStream? = null
             var output: java.io.OutputStream? = null
@@ -826,7 +902,10 @@ class WebBrowserViewModel(
                         val completed = allDownloads.value.find { it.id == id }?.copy(
                             status = "COMPLETED", progress = 100, speed = "مكتمل"
                         )
-                        if (completed != null) repository.addDownload(completed)
+                        if (completed != null) {
+                            repository.addDownload(completed)
+                            try { DownloadNotificationHelper.showCompleted(appCtx, id, completed.fileName, destFile) } catch (_: Exception) {}
+                        }
                         return@launch
                     }
                     throw java.io.IOException("HTTP ${response.code} ${response.message}")
@@ -890,6 +969,7 @@ class WebBrowserViewModel(
                             mimeType = effectiveMime
                         )
                         repository.addDownload(toSave)
+                        try { DownloadNotificationHelper.showProgress(appCtx, id, curItem.fileName, progress, downloaded, totalBytes) } catch (_: Exception) {}
                         lastUpdateTime = now
                         bytesSinceUpdate = 0L
                         lastSavedDownloaded = downloaded
@@ -915,6 +995,11 @@ class WebBrowserViewModel(
                         status = newStatus,
                         speed = finalSpeed
                     ))
+                    if (newStatus == "COMPLETED") {
+                        try { DownloadNotificationHelper.showCompleted(appCtx, id, finalItem.fileName, destFile) } catch (_: Exception) {}
+                    } else {
+                        try { DownloadNotificationHelper.showFailed(appCtx, id, finalItem.fileName, "اكتمل مع تحذير") } catch (_: Exception) {}
+                    }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 // Paused/canceled externally – keep DB state as set by pause/cancel
@@ -924,6 +1009,7 @@ class WebBrowserViewModel(
                 val cur = allDownloads.value.find { it.id == id }
                 if (cur != null && cur.status == "DOWNLOADING") {
                     repository.addDownload(cur.copy(status = "FAILED", speed = "فشل: ${e.message?.take(60) ?: "خطأ"}"))
+                    try { DownloadNotificationHelper.showFailed(appCtx, id, cur.fileName, e.message?.take(60) ?: "خطأ") } catch (_: Exception) {}
                 }
                 // keep partial file for resume; don't delete
             } finally {

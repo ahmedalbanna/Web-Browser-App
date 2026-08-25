@@ -141,6 +141,43 @@ fun BrowserWebView(
                         }
                     }
                 }
+                is BrowserCommand.ToggleReaderMode -> {
+                    webViewInstance?.let { webView ->
+                        val js = """
+                            (function() {
+                                var existing = document.getElementById('__reader_mode_style');
+                                if (existing) {
+                                    existing.remove();
+                                    document.body.style.backgroundColor='';
+                                    document.body.style.color='';
+                                    return 'off';
+                                }
+                                var style = document.createElement('style');
+                                style.id='__reader_mode_style';
+                                style.innerHTML='body{max-width:800px!important;margin:auto!important;background:#fdf6e3!important;color:#333!important;line-height:1.9!important;font-family:serif!important;padding:24px!important;font-size:18px!important} header,nav,footer,aside,.ad,.ads,.advert,.sidebar,iframe[src*="ad"],div[class*="ad-"]{display:none!important} img{max-width:100%!important;height:auto!important} a{color:#0066cc!important}';
+                                document.head.appendChild(style);
+                                window.scrollTo(0,0);
+                                return 'on';
+                            })()
+                        """.trimIndent()
+                        webView.evaluateJavascript(js, null)
+                    }
+                }
+                is BrowserCommand.FindInPage -> {
+                    webViewInstance?.findAllAsync(command.query)
+                }
+                is BrowserCommand.FindNext -> {
+                    webViewInstance?.findNext(true)
+                }
+                is BrowserCommand.FindPrevious -> {
+                    webViewInstance?.findNext(false)
+                }
+                is BrowserCommand.ClearFind -> {
+                    webViewInstance?.clearMatches()
+                }
+                is BrowserCommand.SetTextZoom -> {
+                    webViewInstance?.settings?.textZoom = command.zoom
+                }
             }
         }
     }
@@ -318,7 +355,12 @@ fun BrowserWebView(
                     }
                 }
 
+                setFindListener { activeMatchOrdinal, numberOfMatches, isDoneCounting ->
+                    viewModel.updateFindMatches(activeMatchOrdinal, numberOfMatches)
+                }
                 webViewInstance = this
+                // Apply initial text zoom
+                settings.textZoom = viewModel.textZoom.value
                 // Load active tab initially
                 val activeId = viewModel.activeTabId.value
                 val activeTab = viewModel.tabs.value.find { it.id == activeId }

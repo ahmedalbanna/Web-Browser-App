@@ -83,6 +83,13 @@ fun WebBrowserScreen(
     val isAdBlockerEnabled by viewModel.isAdBlockerEnabled.collectAsState()
     val blockedAdsCount by viewModel.blockedAdsCount.collectAsState()
     val errorMessage by viewModel.errorMessages.collectAsState()
+    val selectedSearchEngine by viewModel.selectedSearchEngine.collectAsState()
+    val isReaderMode by viewModel.isReaderMode.collectAsState()
+    val textZoom by viewModel.textZoom.collectAsState()
+    val isFindBarVisible by viewModel.isFindBarVisible.collectAsState()
+    val findQuery by viewModel.findQuery.collectAsState()
+    val findActiveMatch by viewModel.findActiveMatch.collectAsState()
+    val findMatchCount by viewModel.findMatchCount.collectAsState()
 
     var showHistoryAndBookmarksSheet by remember { mutableStateOf(false) }
     var showTabsListSheet by remember { mutableStateOf(false) }
@@ -514,6 +521,236 @@ fun WebBrowserScreen(
                                 contentDescription = "مشغل الفيديو والميديا الذكي",
                                 tint = currentSecText
                             )
+                        }
+
+                        Spacer(modifier = Modifier.width(6.dp))
+
+                        // Share current page
+                        IconButton(
+                            onClick = {
+                                val url = viewModel.urlInput.value
+                                if (url.isNotEmpty()) {
+                                    try {
+                                        val sendIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                            type = "text/plain"
+                                            putExtra(android.content.Intent.EXTRA_TEXT, url)
+                                            putExtra(android.content.Intent.EXTRA_SUBJECT, viewModel.tabs.value.find { it.id == viewModel.activeTabId.value }?.title ?: url)
+                                        }
+                                        context.startActivity(android.content.Intent.createChooser(sendIntent, "مشاركة الرابط"))
+                                    } catch (e: Exception) {
+                                        viewModel.showError("فشل المشاركة: ${e.localizedMessage}")
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .testTag("share_button")
+                                .size(44.dp)
+                                .background(currentLightElement, CircleShape)
+                                .border(1.dp, currentBorder, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = "مشاركة الصفحة",
+                                tint = currentSecText
+                            )
+                        }
+                    }
+
+                    // Milestone 4 — v1.3 secondary actions row (search engine, reader, find, zoom)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Search engine selector dropdown
+                        var showSearchMenu by remember { mutableStateOf(false) }
+                        Box {
+                            IconButton(
+                                onClick = { showSearchMenu = true },
+                                modifier = Modifier
+                                    .testTag("search_engine_button")
+                                    .size(36.dp)
+                                    .background(currentLightElement, RoundedCornerShape(18.dp))
+                                    .border(1.dp, currentBorder, RoundedCornerShape(18.dp))
+                            ) {
+                                Text(
+                                    text = selectedSearchEngine.icon,
+                                    color = currentAccent,
+                                    style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showSearchMenu,
+                                onDismissRequest = { showSearchMenu = false }
+                            ) {
+                                SearchEngine.entries.forEach { engine ->
+                                    DropdownMenuItem(
+                                        text = { Text("${engine.icon} ${engine.displayNameAr} (${engine.displayName})") },
+                                        onClick = {
+                                            viewModel.setSearchEngine(engine)
+                                            showSearchMenu = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        // Reader mode toggle
+                        IconButton(
+                            onClick = { viewModel.toggleReaderMode() },
+                            modifier = Modifier
+                                .testTag("reader_mode_button")
+                                .size(36.dp)
+                                .background(
+                                    if (isReaderMode) currentAccent.copy(alpha = 0.15f) else currentLightElement,
+                                    CircleShape
+                                )
+                                .border(1.dp, if (isReaderMode) currentAccent else currentBorder, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Article,
+                                contentDescription = "وضع القراءة",
+                                tint = if (isReaderMode) currentAccent else currentSecText,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        // Find in page toggle
+                        IconButton(
+                            onClick = { if (isFindBarVisible) viewModel.hideFindBar() else viewModel.showFindBar() },
+                            modifier = Modifier
+                                .testTag("find_toggle_button")
+                                .size(36.dp)
+                                .background(
+                                    if (isFindBarVisible) currentAccent.copy(alpha = 0.15f) else currentLightElement,
+                                    CircleShape
+                                )
+                                .border(1.dp, if (isFindBarVisible) currentAccent else currentBorder, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Search,
+                                contentDescription = "بحث في الصفحة",
+                                tint = if (isFindBarVisible) currentAccent else currentSecText,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+
+                        // Text zoom controls
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(currentLightElement, RoundedCornerShape(18.dp))
+                                .border(1.dp, currentBorder, RoundedCornerShape(18.dp))
+                                .padding(horizontal = 4.dp)
+                        ) {
+                            IconButton(
+                                onClick = { viewModel.setTextZoom(textZoom - 10) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.TextDecrease,
+                                    contentDescription = "تصغير النص",
+                                    tint = currentSecText,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                            Text(
+                                text = "$textZoom%",
+                                color = currentText,
+                                style = androidx.compose.material3.MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 4.dp)
+                            )
+                            IconButton(
+                                onClick = { viewModel.setTextZoom(textZoom + 10) },
+                                modifier = Modifier.size(28.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.TextIncrease,
+                                    contentDescription = "تكبير النص",
+                                    tint = currentSecText,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.weight(1f))
+
+                        // Open externally
+                        IconButton(
+                            onClick = {
+                                val url = viewModel.urlInput.value
+                                if (url.startsWith("http")) {
+                                    try {
+                                        val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+                                        context.startActivity(intent)
+                                    } catch (e: Exception) {
+                                        viewModel.showError("تعذر الفتح الخارجي: ${e.localizedMessage}")
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .testTag("open_external_button")
+                                .size(36.dp)
+                                .background(currentLightElement, CircleShape)
+                                .border(1.dp, currentBorder, CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.OpenInNew,
+                                contentDescription = "فتح في تطبيق خارجي",
+                                tint = currentSecText,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
+                    // Find bar (appears when active)
+                    if (isFindBarVisible) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(currentLightElement)
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            TextField(
+                                value = findQuery,
+                                onValueChange = { viewModel.setFindQuery(it) },
+                                placeholder = { Text("بحث في الصفحة…", style = androidx.compose.material3.MaterialTheme.typography.bodySmall) },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .testTag("find_input"),
+                                singleLine = true,
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color.White,
+                                    unfocusedContainerColor = Color.White,
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    focusedTextColor = Color.Black,
+                                    unfocusedTextColor = Color.Black
+                                ),
+                                textStyle = LocalTextStyle.current.copy(fontSize = 13.sp)
+                            )
+                            if (findMatchCount > 0) {
+                                Text(
+                                    text = "${findActiveMatch + 1}/$findMatchCount",
+                                    color = currentSecText,
+                                    style = androidx.compose.material3.MaterialTheme.typography.labelSmall
+                                )
+                            }
+                            IconButton(onClick = { viewModel.findPrevious() }, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Default.KeyboardArrowUp, contentDescription = "السابق", tint = currentText, modifier = Modifier.size(18.dp))
+                            }
+                            IconButton(onClick = { viewModel.findNext() }, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Default.KeyboardArrowDown, contentDescription = "التالي", tint = currentText, modifier = Modifier.size(18.dp))
+                            }
+                            IconButton(onClick = { viewModel.hideFindBar() }, modifier = Modifier.size(32.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = "إغلاق", tint = currentSecText, modifier = Modifier.size(18.dp))
+                            }
                         }
                     }
 

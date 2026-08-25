@@ -50,6 +50,8 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import android.content.Intent
+import androidx.core.content.FileProvider
 import com.example.ui.*
 import com.example.data.*
 
@@ -406,7 +408,40 @@ fun DownloadRowItem(
                         "COMPLETED" -> {
                             IconButton(
                                 onClick = {
-                                    android.widget.Toast.makeText(context, "تم فتح الملف بنجاح!", android.widget.Toast.LENGTH_SHORT).show()
+                                    try {
+                                        val dir = java.io.File(context.filesDir, "downloads")
+                                        val file = java.io.File(dir, item.fileName)
+                                        // Fallback: try to find file with similar name if not found (handles unique suffix)
+                                        val targetFile = if (file.exists()) file else {
+                                            dir.listFiles()?.find { it.name.startsWith(item.fileName.substringBeforeLast('.')) } ?: file
+                                        }
+                                        if (!targetFile.exists()) {
+                                            android.widget.Toast.makeText(context, "الملف غير موجود", android.widget.Toast.LENGTH_SHORT).show()
+                                            return@IconButton
+                                        }
+                                        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", targetFile)
+                                        val mime = when {
+                                            item.mimeType.isNotEmpty() && item.mimeType != "application/octet-stream" -> item.mimeType
+                                            else -> {
+                                                val ext = item.fileName.substringAfterLast('.', "").lowercase()
+                                                when (ext) {
+                                                    "pdf" -> "application/pdf"
+                                                    "jpg", "jpeg" -> "image/jpeg"
+                                                    "png" -> "image/png"
+                                                    "mp4" -> "video/mp4"
+                                                    else -> "application/octet-stream"
+                                                }
+                                            }
+                                        }
+                                        val intent = Intent(Intent.ACTION_VIEW).apply {
+                                            setDataAndType(uri, mime)
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                        context.startActivity(Intent.createChooser(intent, "فتح الملف"))
+                                        android.widget.Toast.makeText(context, "تم فتح الملف بنجاح!", android.widget.Toast.LENGTH_SHORT).show()
+                                    } catch (e: Exception) {
+                                        android.widget.Toast.makeText(context, "تعذر فتح الملف: ${e.localizedMessage}", android.widget.Toast.LENGTH_SHORT).show()
+                                    }
                                 }, 
                                 modifier = Modifier.size(28.dp)
                             ) {
