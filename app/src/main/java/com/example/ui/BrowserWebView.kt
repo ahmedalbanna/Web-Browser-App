@@ -137,6 +137,12 @@ fun BrowserWebView(
                     setSupportZoom(true)
                     setBuiltInZoomControls(true)
                     setDisplayZoomControls(false)
+                    allowFileAccess = false
+                    allowContentAccess = false
+                    allowFileAccessFromFileURLs = false
+                    allowUniversalAccessFromFileURLs = false
+                    safeBrowsingEnabled = true
+                    mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
                 }
 
                 addJavascriptInterface(object {
@@ -253,8 +259,8 @@ fun BrowserWebView(
                         handler: android.webkit.SslErrorHandler?,
                         error: android.net.http.SslError?
                     ) {
-                        super.onReceivedSslError(view, handler, error)
-                        viewModel.showError("خطأ في شهادة الأمان (SSL)!")
+                        handler?.cancel()
+                        viewModel.showError("خطأ في شهادة الأمان (SSL)! تم إلغاء التحميل لحمايتك.")
                     }
 
                     override fun onPageFinished(view: WebView?, url: String?) {

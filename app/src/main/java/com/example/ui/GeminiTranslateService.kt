@@ -63,7 +63,7 @@ class GeminiTranslateService {
             }
 
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey")
+                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey")
                 .post(requestBodyJson.toString().toRequestBody(jsonMediaType))
                 .build()
 

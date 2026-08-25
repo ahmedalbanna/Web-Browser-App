@@ -9,6 +9,7 @@ import com.example.data.Bookmark
 import com.example.data.HistoryEntry
 import com.example.data.DownloadItem
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.net.URLEncoder
 import java.util.UUID
@@ -37,6 +38,13 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
 
     private val repository: BrowserRepository = BrowserRepository(BrowserDatabase.getDatabase(application).browserDao())
     private val activeDownloadJobs = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Job>()
+    private val downloadClient = okhttp3.OkHttpClient.Builder()
+        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+        .followRedirects(true)
+        .followSslRedirects(true)
+        .build()
 
     val allDownloads: StateFlow<List<DownloadItem>> = repository.allDownloads
         .stateIn(
@@ -567,10 +575,10 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     fun incrementBlockedAds() {
-        _blockedAdsCount.value += 1
+        _blockedAdsCount.update { it + 1 }
     }
 
-    // Download Manager Actions
+    // Download Manager Actions — real network via OkHttp streaming to internal storage
     fun startDownload(
         url: String,
         contentDisposition: String? = null,
@@ -578,19 +586,17 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         contentLength: Long = -1L
     ) {
         val id = UUID.randomUUID().toString()
-        val fileName = getFileNameFromUrl(url, contentDisposition)
-        
-        val targetLength = if (contentLength <= 0) {
-            (5 * 1024 * 1024L .. 120 * 1024 * 1024L).random()
-        } else {
-            contentLength
-        }
+        val rawName = getFileNameFromUrl(url, contentDisposition)
+        val fileName = sanitizeFileName(rawName)
+
+        // Use provided length if >0, otherwise 0 = unknown until response
+        val initialLength = if (contentLength > 0) contentLength else 0L
 
         val item = DownloadItem(
             id = id,
             fileName = fileName,
             url = url,
-            totalBytes = targetLength,
+            totalBytes = initialLength,
             downloadedBytes = 0L,
             progress = 0,
             status = "DOWNLOADING",
@@ -609,8 +615,9 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         activeDownloadJobs[id]?.cancel()
         activeDownloadJobs.remove(id)
         viewModelScope.launch {
-            val downloadsList = allDownloads.value
-            val foundItem = downloadsList.find { it.id == id } ?: return@launch
+            val foundItem = allDownloads.value.find { it.id == id } ?: return@launch
+            // If already completed/canceled, ignore
+            if (foundItem.status != "DOWNLOADING") return@launch
             val updated = foundItem.copy(status = "PAUSED", speed = "موقف مؤقتاً")
             repository.addDownload(updated)
         }
@@ -618,9 +625,9 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
 
     fun resumeDownload(id: String) {
         viewModelScope.launch {
-            val downloadsList = allDownloads.value
-            val foundItem = downloadsList.find { it.id == id } ?: return@launch
-            val updated = foundItem.copy(status = "DOWNLOADING", speed = "جاري التحميل...")
+            val foundItem = allDownloads.value.find { it.id == id } ?: return@launch
+            if (foundItem.status == "COMPLETED") return@launch
+            val updated = foundItem.copy(status = "DOWNLOADING", speed = "جاري الاستئناف...")
             repository.addDownload(updated)
             runDownloadJob(updated)
         }
@@ -630,10 +637,15 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         activeDownloadJobs[id]?.cancel()
         activeDownloadJobs.remove(id)
         viewModelScope.launch {
-            val downloadsList = allDownloads.value
-            val foundItem = downloadsList.find { it.id == id } ?: return@launch
+            val foundItem = allDownloads.value.find { it.id == id } ?: return@launch
             val updated = foundItem.copy(status = "CANCELED", speed = "ملغى")
             repository.addDownload(updated)
+            // delete partial file
+            try {
+                val ctx = getApplication<Application>()
+                val f = java.io.File(java.io.File(ctx.filesDir, "downloads"), foundItem.fileName)
+                if (f.exists()) f.delete()
+            } catch (_: Exception) {}
         }
     }
 
@@ -641,6 +653,11 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         activeDownloadJobs[download.id]?.cancel()
         activeDownloadJobs.remove(download.id)
         viewModelScope.launch {
+            try {
+                val ctx = getApplication<Application>()
+                val f = java.io.File(java.io.File(ctx.filesDir, "downloads"), download.fileName)
+                if (f.exists()) f.delete()
+            } catch (_: Exception) {}
             repository.removeDownload(download)
         }
     }
@@ -649,55 +666,202 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         activeDownloadJobs.forEach { (_, job) -> job.cancel() }
         activeDownloadJobs.clear()
         viewModelScope.launch {
+            try {
+                val ctx = getApplication<Application>()
+                val dir = java.io.File(ctx.filesDir, "downloads")
+                if (dir.exists()) dir.listFiles()?.forEach { it.delete() }
+            } catch (_: Exception) {}
             repository.clearAllDownloads()
         }
     }
 
     private fun runDownloadJob(item: DownloadItem) {
         activeDownloadJobs[item.id]?.cancel()
-        
-        val job = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
-            var downloaded = item.downloadedBytes
-            val total = item.totalBytes
+
+        val job = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val appCtx = getApplication<Application>()
+            val downloadDir = java.io.File(appCtx.filesDir, "downloads").apply { if (!exists()) mkdirs() }
+            val destFile = resolveDestFile(downloadDir, item.fileName)
+
+            // If this is a resume, we may have partial file already
+            var downloaded = if (item.downloadedBytes > 0 && destFile.exists()) {
+                minOf(item.downloadedBytes, destFile.length())
+            } else {
+                // fresh download – ensure empty file
+                if (item.downloadedBytes == 0L && destFile.exists()) destFile.delete()
+                0L
+            }
+            var totalBytes = item.totalBytes
             val id = item.id
-            
-            while (downloaded < total) {
-                kotlinx.coroutines.delay(1000)
-                
-                // Real/simulated download increments (speed of 1.5MB/s to 4.5MB/s)
-                val speedMb = (15..45).random() / 10.0
-                val speedBytes = (1024 * 1024 * speedMb).toLong()
-                downloaded = (downloaded + speedBytes).coerceAtMost(total)
-                val progress = ((downloaded.toDouble() / total) * 100).toInt()
-                
-                val speedStr = String.format(java.util.Locale.US, "%.1f MB/s", (speedBytes / (1024 * 1024.0)))
-                
-                val currentList = allDownloads.value
-                val currentItem = currentList.find { it.id == id }
-                if (currentItem == null || currentItem.status != "DOWNLOADING") {
-                    break
+
+            var input: java.io.InputStream? = null
+            var output: java.io.OutputStream? = null
+            var response: okhttp3.Response? = null
+
+            try {
+                val reqBuilder = okhttp3.Request.Builder().url(item.url).get()
+                if (downloaded > 0) {
+                    reqBuilder.header("Range", "bytes=$downloaded-")
                 }
-                
-                val updatedStatus = if (downloaded >= total) "COMPLETED" else "DOWNLOADING"
-                val finalSpeed = if (downloaded >= total) "مكتمل" else speedStr
-                
-                val updatedItem = currentItem.copy(
-                    downloadedBytes = downloaded,
-                    progress = progress,
-                    status = updatedStatus,
-                    speed = finalSpeed
-                )
-                
-                repository.addDownload(updatedItem)
-                
-                if (downloaded >= total) {
-                    activeDownloadJobs.remove(id)
-                    break
+                // Some servers require UA
+                reqBuilder.header("User-Agent", "Mozilla/5.0 (Android) المتصفح/1.0")
+
+                val request = reqBuilder.build()
+                response = downloadClient.newCall(request).execute()
+
+                if (!response.isSuccessful && response.code != 206) {
+                    // handle 416 (range not satisfiable) as completed
+                    if (response.code == 416) {
+                        val completed = allDownloads.value.find { it.id == id }?.copy(
+                            status = "COMPLETED", progress = 100, speed = "مكتمل"
+                        )
+                        if (completed != null) repository.addDownload(completed)
+                        return@launch
+                    }
+                    throw java.io.IOException("HTTP ${response.code} ${response.message}")
                 }
+
+                val body = response.body ?: throw java.io.IOException("Empty body")
+                val contentLength = body.contentLength()
+                val contentRange = response.header("Content-Range")
+                val inferredTotal: Long = when {
+                    contentRange != null -> {
+                        // format: bytes 500-999/2000
+                        contentRange.substringAfterLast('/').toLongOrNull() ?: -1L
+                    }
+                    contentLength != -1L -> if (downloaded > 0) downloaded + contentLength else contentLength
+                    else -> totalBytes
+                }
+                if (inferredTotal > 0) totalBytes = inferredTotal
+                val mimeFromServer = body.contentType()?.toString()?.substringBefore(';')?.trim()
+                val effectiveMime = mimeFromServer ?: item.mimeType
+
+                // update initial total if we now know it
+                if (totalBytes > 0 && totalBytes != item.totalBytes) {
+                    val cur = allDownloads.value.find { it.id == id }
+                    if (cur != null) repository.addDownload(cur.copy(totalBytes = totalBytes, mimeType = effectiveMime))
+                }
+
+                input = body.byteStream()
+                // Append if resuming, else overwrite
+                output = java.io.FileOutputStream(destFile, downloaded > 0)
+
+                val buffer = ByteArray(8 * 1024)
+                var lastUpdateTime = System.currentTimeMillis()
+                var bytesSinceUpdate = 0L
+                var lastSavedDownloaded = downloaded
+
+                while (true) {
+                    // Cooperatively check cancellation / external pause
+                    if (!isActive) break
+                    val current = allDownloads.value.find { it.id == id }
+                    if (current == null || current.status != "DOWNLOADING") break
+
+                    val read = input.read(buffer)
+                    if (read == -1) break
+                    output.write(buffer, 0, read)
+                    downloaded += read
+                    bytesSinceUpdate += read
+
+                    val now = System.currentTimeMillis()
+                    val elapsed = now - lastUpdateTime
+                    // Throttle DB writes to ~500ms or on completion
+                    if (elapsed >= 500 || downloaded >= totalBytes) {
+                        val progress = if (totalBytes > 0) ((downloaded * 100) / totalBytes).toInt().coerceIn(0, 100) else 0
+                        val speedBps = if (elapsed > 0) (bytesSinceUpdate * 1000 / elapsed) else 0L
+                        val speedStr = formatSpeed(speedBps)
+                        val curItem = allDownloads.value.find { it.id == id } ?: break
+                        val toSave = curItem.copy(
+                            downloadedBytes = downloaded,
+                            totalBytes = if (totalBytes > 0) totalBytes else curItem.totalBytes,
+                            progress = progress,
+                            speed = speedStr,
+                            mimeType = effectiveMime
+                        )
+                        repository.addDownload(toSave)
+                        lastUpdateTime = now
+                        bytesSinceUpdate = 0L
+                        lastSavedDownloaded = downloaded
+                    }
+                    // Ensure data flushed periodically
+                    if (downloaded - lastSavedDownloaded > 256 * 1024) {
+                        output.flush()
+                    }
+                }
+                output.flush()
+
+                val finalItem = allDownloads.value.find { it.id == id }
+                if (finalItem != null && finalItem.status == "DOWNLOADING") {
+                    val isComplete = totalBytes in 1..downloaded || (totalBytes <= 0 && downloaded > 0)
+                    // If server gave us exact total, check; otherwise treat EOF as complete
+                    val newStatus = if (isComplete || (totalBytes > 0 && downloaded >= totalBytes)) "COMPLETED" else "FAILED"
+                    val finalProgress = if (newStatus == "COMPLETED") 100 else finalItem.progress
+                    val finalSpeed = if (newStatus == "COMPLETED") "مكتمل" else "مكتمل مع تحذير"
+                    repository.addDownload(finalItem.copy(
+                        downloadedBytes = downloaded,
+                        totalBytes = if (totalBytes > 0) totalBytes else downloaded,
+                        progress = finalProgress,
+                        status = newStatus,
+                        speed = finalSpeed
+                    ))
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // Paused/canceled externally – keep DB state as set by pause/cancel
+                try { output?.flush() } catch (_: Exception) {}
+                throw e
+            } catch (e: Exception) {
+                val cur = allDownloads.value.find { it.id == id }
+                if (cur != null && cur.status == "DOWNLOADING") {
+                    repository.addDownload(cur.copy(status = "FAILED", speed = "فشل: ${e.message?.take(60) ?: "خطأ"}"))
+                }
+                // keep partial file for resume; don't delete
+            } finally {
+                try { input?.close() } catch (_: Exception) {}
+                try { output?.close() } catch (_: Exception) {}
+                try { response?.close() } catch (_: Exception) {}
+                activeDownloadJobs.remove(id)
             }
         }
-        
+
         activeDownloadJobs[item.id] = job
+    }
+
+    private fun formatSpeed(bytesPerSec: Long): String {
+        if (bytesPerSec <= 0) return "0 B/s"
+        val kb = bytesPerSec / 1024.0
+        val mb = kb / 1024.0
+        return when {
+            mb >= 1 -> String.format(java.util.Locale.US, "%.1f MB/s", mb)
+            kb >= 1 -> String.format(java.util.Locale.US, "%.0f KB/s", kb)
+            else -> "$bytesPerSec B/s"
+        }
+    }
+
+    private fun resolveDestFile(dir: java.io.File, fileName: String): java.io.File {
+        var f = java.io.File(dir, fileName)
+        if (!f.exists()) return f
+        // If file exists but we are not resuming (downloadedBytes==0), make unique name
+        val dot = fileName.lastIndexOf('.')
+        val base = if (dot > 0) fileName.substring(0, dot) else fileName
+        val ext = if (dot > 0) fileName.substring(dot) else ""
+        var idx = 1
+        while (f.exists() && idx < 100) {
+            f = java.io.File(dir, "${base}_$idx$ext")
+            idx++
+        }
+        return f
+    }
+
+    private fun sanitizeFileName(name: String): String {
+        var n = name.trim().replace(Regex("[\\\\/:*?\"<>|]"), "_")
+        if (n.isEmpty()) n = "download_file"
+        // limit length
+        if (n.length > 100) {
+            val dot = n.lastIndexOf('.')
+            val ext = if (dot > 0) n.substring(dot) else ""
+            n = n.take(100 - ext.length) + ext
+        }
+        return n
     }
 
     private fun getFileNameFromUrl(url: String, contentDisposition: String?): String {

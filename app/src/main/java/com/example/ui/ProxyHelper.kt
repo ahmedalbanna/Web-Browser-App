@@ -13,7 +13,8 @@ object ProxyHelper {
         try {
             if (WebViewFeature.isFeatureSupported(WebViewFeature.PROXY_OVERRIDE)) {
                 val proxyConfig = ProxyConfig.Builder()
-                    .addProxyRule("$ip:$port")
+                    .addProxyRule("http://$ip:$port")
+                    .addBypassRule("<local>")
                     .addDirect()
                     .build()
                     
