@@ -98,13 +98,65 @@
 - [x] **Share & open externally:** — **DONE 2026-08-25** `WebBrowserScreen.kt:540` share `IconButton` (`testTag share_button`, `Icons.Default.Share`) → `ACTION_SEND` `text/plain` `EXTRA_TEXT=url` + `EXTRA_SUBJECT=title` + `createChooser`, open externally `IconButton` (`testTag open_external_button`, `Icons.Default.OpenInNew`) → `ACTION_VIEW` `Uri.parse(url)` + `Toast` on fail; existing video panel share retained (`VideoPanel.kt:3994`).
 - [x] **Media polish:** — **DONE 2026-08-25** `VideoPanel.kt:630` PiP + background audio: `AndroidManifest.xml:20` `supportsPictureInPicture="true"` + `configChanges`, `ImmersiveVideoPlayerDialog:640` top bar center `Row` PiP button (`Icons.Default.PictureInPictureAlt`, `activity.enterPictureInPictureMode(PictureInPictureParams.Builder().setAspectRatio(16,9).build())`) + background toggle (`Icons.Default.MusicNote`/`MusicOff`, `currentAccent` when on, `testTag` implicit), `isBackgroundAudioEnabled` `remember` hoisted (`WebBrowserScreen` → `VideoPanel`), `DisposableEffect(isBackgroundAudioEnabled)` keeps `exoPlayer.playWhenReady=true`, `ExoPlayer` lifecycle `DisposableEffect` already `release()`; verified `compileDebugKotlin` green.
 
-### Milestone 5 — v1.4+ Future (backlog, not committed)
+### Milestone 5 — v1.4+ Future (backlog, not committed) — *PLANNED, detailed breakdown 2026-08-25*
 
-- [ ] System-wide VPN via `VpnService` (requires `FOREGROUND_SERVICE` + `BIND_VPN_SERVICE`) – separate flavor `vpn`
-- [ ] Cloud sync (Firebase) – encrypted bookmark/history sync, opt-in
-- [ ] Extensions-like userscripts (JS injection presets)
-- [ ] Desktop large-screen & foldable adaptive layout
-- [ ] Play Store hardening: `isMinifyEnabled=true`, R8, `proguard-rules.pro` review, `targetSdk` bump to 36 already done, `compileSdk` 36.1 ok
+> **Goal:** Prepare next major iteration without committing scope; harden store readiness and create stubs for 4 flagship bets.
+
+#### 5.1 System-wide VPN via `VpnService` — *Flavor `vpn` (4–6 weeks)*
+- **Why:** Current `ProxyHelper` is WebView-only (`PROXY_OVERRIDE`); system-wide TUN needed for all apps. Separate `vpn` flavor to keep base APK lean and avoid `FOREGROUND_SERVICE` permission for all users.
+- **Tasks:**
+  - [ ] Create `vpn` productFlavor in `app/build.gradle.kts:13` (`flavorDimensions "transport"`; `vpn` adds `BIND_VPN_SERVICE` + `FOREGROUND_SERVICE` + `FOREGROUND_SERVICE_SPECIAL_USE` for Android 14+)
+  - [ ] Stub `vpn/VpnService.kt:1` (`VpnService`, `Builder.addAddress("10.0.0.2",32).addRoute("0.0.0.0",0).addDnsServer("1.1.1.1")`), `VpnViewModel` with `connect()`/`disconnect()` + `isVpnActive` `StateFlow`
+  - [ ] UI: `VpnSettingsPanel` add “System VPN” toggle (only visible in `vpn` flavor via `BuildConfig.FLAVOR`)
+  - [ ] Lifecycle: `VpnService` → `Notification` channel `vpn_foreground` (persistent), `ProxyHelper` fallback when `PROXY_OVERRIDE` unsupported
+  - [ ] QA: Test on Pixel + Samsung + OEM WebView <77 (fallback), battery drain <3%/h, kill-switch on disconnect
+- **Acceptance:** `adb shell dumpsys vpn` shows TUN, `curl ifconfig.me` returns VPN IP, no leak on `WebView` reload; `assembleVpnRelease` builds.
+- **Dependencies:** `Milestone 2` VPN validation; **Reuse:** `VpnServer` list, `ProxyApi`; **Est:** 4–6w, 1 eng.
+
+#### 5.2 Cloud sync (Firebase) — *Encrypted, opt-in (3–5 weeks)*
+- **Why:** Local `Room` only; users lose bookmarks on new device. Opt-in, E2EE, no tracker.
+- **Tasks:**
+  - [ ] Enable `firebaseBom:34.12.0` + `firebase-auth` (Anonymous/Google) + `firebase-firestore` (or `firebase-database`) behind `sync` feature flag `SharedPreferences`
+  - [ ] `data/SyncRepository.kt` – `encrypt(bookmark)` via `Tink` (XChaCha20) with user passphrase, `syncBookmarks()`/`syncHistory()` differential (last `timestamp` > `lastSync`)
+  - [ ] `data/BrowserDatabase` add `syncMetadata` table (`lastSync`, `deviceId`)
+  - [ ] UI: `SettingsPanel` → “Sync” switch + “Encrypt passphrase” + “Sync now” + conflict resolver (“Keep local / Keep cloud”)
+  - [ ] Privacy: `data_extraction_rules.xml` already excludes `downloads`; add `<exclude domain="database" path="sync_metadata"/>` if user opts out
+- **Acceptance:** Two devices with same account converge bookmarks within 30s; airplane-mode still works; no plaintext in Firestore console.
+- **Dependencies:** `Milestone 2` `exportSchema`; **Reuse:** `BrowserRepository`; **Est:** 3–5w.
+
+#### 5.3 Extensions-like userscripts — *JS injection presets (2–3 weeks)*
+- **Why:** Power users want adblock lists, dark mode, readability without forking.
+- **Tasks:**
+  - [ ] `userscript/UserScriptManager.kt` – `data class UserScript(id, name, js, css, runAt, enabled, matches: Regex)`, `Room` table `user_scripts`, `Dao`
+  - [ ] Presets: `DarkReader` (invert), `Readability` (already `__reader_mode_style` → extract to script), `BypassPaywall` placeholder (no-op), `AdGuard` extra
+  - [ ] UI: `UserscriptsPanel` (list + toggle + edit + import `.js` via SAF), `BrowserWebView` inject via `evaluateJavascript` on `onPageFinished` if `script.matches(url)`
+  - [ ] Security: CSP `script-src` check, `allowFileAccess=false` still enforced; scripts run in `IsolatedContext` flag for future
+- **Acceptance:** User can add `document.body.style.filter="invert(1)"` and see instant effect; presets survive reboot.
+- **Dependencies:** `Milestone 4` reader JS; **Reuse:** `BrowserWebView` injection; **Est:** 2–3w.
+
+#### 5.4 Desktop large-screen & foldable adaptive layout — *(2–4 weeks)*
+- **Why:** Current `WebBrowserScreen` is phone-optimized (`LazyRow` tabs, bottom bar). Tablets/foldables need `List-Detail` and `WindowSizeClass`.
+- **Tasks:**
+  - [ ] Add `androidx.compose.material3:material3-window-size-class` (BOM already) + `androidx.window:window`
+  - [ ] `ui/adaptive/AdaptiveBrowserScreen.kt` – `calculateWindowSizeClass()`; `Compact` → phone (current), `Medium` → rail + `NavigationRail` + `TwoPane` (tabs + WebView side-by-side, `HorizontalPager`), `Expanded` → `PermanentDrawer` + `DraggableDivider`
+  - [ ] Foldable: `WindowInfoTracker` `FoldingFeature` → split `WebView` + `History` when `isSeparating`
+  - [ ] QA: Test on Pixel Tablet, Fold, Desktop (Android Studio Resizable Emulator `windowSizeClass` + `Roborazzi` screenshots at `Phone/Tablet/Desktop` qualifiers)
+- **Acceptance:** No horizontal scroll on `Expanded`; foldable hinge not occluding content; `GreetingScreenshotTest` passes at 3 widths.
+- **Dependencies:** `Milestone 3` split; **Reuse:** `BrowserColors`, `panels`; **Est:** 2–4w.
+
+#### 5.5 Play Store hardening — *Store-ready `release` (1–2 weeks)* — **IN PROGRESS 2026-08-25**
+- **Why:** `release` currently `isMinifyEnabled=false` (no R8), no `shrinkResources`, raw `proguard-rules.pro`; `targetSdk 36` done, but `compileSdk` `36.1` needs verification + `lint` baseline.
+- **Tasks:**
+  - [x] `app/build.gradle.kts:39` `release { isMinifyEnabled=false → true, isShrinkResources=true, isDebuggable=false, proguardFiles(...)}` — **DONE 2026-08-25** (see below)
+  - [x] `proguard-rules.pro:1` — **DONE 2026-08-25** add `-keep class com.example.data.** { *; }`, `-keep class com.example.ui.** { *; }`, `-keep class androidx.room.**`, `-keep class com.squareup.moshi.**`, `-keepattributes *Annotation*,Signature` (see `proguard-rules.pro`)
+  - [x] `signingConfigs.release` already env `STORE_PASSWORD/KEY_PASSWORD`; verify `assembleRelease` + `bundleRelease` + `lintRelease` green — **DONE 2026-08-25** (`./gradlew lintRelease` 0 errors)
+  - [ ] `baseline` `lint-baseline.xml` committed after `checkReleaseBuilds=true` (already `lint { abortOnError false }` in ` Milestone 3`)
+  - [ ] `targetSdk 36` already `36`; `compileSdk` `36.1` verified via `compileSdk { version = release(36) { minorApiLevel = 1 } }`
+  - [ ] Upload `bundleRelease` to Play Internal Track + `pre-launch report` + `Data safety` form (VPN disclosure, `POST_NOTIFICATIONS`)
+- **Acceptance:** `bundleRelease` <30MB, `lintRelease` 0, `testReleaseUnitTest` green, no `ClassNotFoundException` on `Room`/`Moshi` after R8.
+- **Dependencies:** None; **Est:** 1–2w; **Owner:** Build/CI.
+
+**Overall Milestone 5 Estimate:** 12–20 weeks with 1–2 eng, parallelizable (5.1 and 5.2 independent, 5.3/5.4 UI). **Not committed:** requires `v1.3` stability + user feedback; `v1.4` will cut scope to 2 bets max (likely 5.5 + 5.1).
 
 ---
 
