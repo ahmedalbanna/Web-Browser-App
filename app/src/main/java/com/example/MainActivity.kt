@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.ui.BrowserViewModelFactory
 import com.example.ui.WebBrowserScreen
 import com.example.ui.WebBrowserViewModel
 import com.example.ui.theme.MyApplicationTheme
@@ -19,7 +20,8 @@ class MainActivity : ComponentActivity() {
     setContent {
       MyApplicationTheme {
         Surface(modifier = Modifier.fillMaxSize()) {
-          val browserViewModel: WebBrowserViewModel = viewModel()
+          val factory = BrowserViewModelFactory(application)
+          val browserViewModel: WebBrowserViewModel = viewModel(factory = factory)
           WebBrowserScreen(viewModel = browserViewModel)
         }
       }

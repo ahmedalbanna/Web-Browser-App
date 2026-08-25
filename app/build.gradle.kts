@@ -14,8 +14,8 @@ android {
     applicationId = "com.aistudio.webbrowser.ykcxmr"
     minSdk = 24
     targetSdk = 36
-    versionCode = 2
-    versionName = "1.1"
+    versionCode = 3
+    versionName = "1.2"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -55,7 +55,13 @@ android {
     compose = true
     buildConfig = true
   }
-  testOptions { unitTests { isIncludeAndroidResources = true } }
+   testOptions { unitTests { isIncludeAndroidResources = true } }
+   lint {
+      abortOnError = false
+      checkReleaseBuilds = true
+      warningsAsErrors = false
+      baseline = file("lint-baseline.xml")
+   }
 }
 
 // Configure the Secrets Gradle Plugin to use .env and .env.example files

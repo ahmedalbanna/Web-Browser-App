@@ -1,3 +1,103 @@
 <resources>
     <string name="app_name">المتصفح</string>
+
+    <!-- Search & Navigation -->
+    <string name="search_hint">ابحث أو اكتب عنوان موقع ويب…</string>
+    <string name="search_engine_google">https://www.google.com/search?q=%s</string>
+    <string name="new_tab_title">علامة تبويب جديدة</string>
+    <string name="new_page_title">صفحة جديدة</string>
+    <string name="unknown_page_title">صفحة غير معروفة</string>
+
+    <!-- Tabs -->
+    <string name="tabs_opened">علامات التبويب المفتوحة (%d)</string>
+    <string name="tab_new">تبويب جديد</string>
+    <string name="tab_close">إغلاق التبويب</string>
+
+    <!-- Incognito -->
+    <string name="incognito_active">وضع متخفٍ نشط</string>
+    <string name="incognito_toggle_on">الوضع المتخفي نشط</string>
+    <string name="incognito_toggle_off">الوضع العادي</string>
+
+    <!-- VPN -->
+    <string name="vpn_title">جسر التشفير الآمن (VPN)</string>
+    <string name="vpn_connected">نشط ومؤمن</string>
+    <string name="vpn_disconnected">غير متصل</string>
+    <string name="vpn_enable">انقر للتشغيل وبدء التصفح المشفر</string>
+    <string name="vpn_disable">انقر للقطع ووقف التشفير</string>
+    <string name="vpn_stats_title">إحصائيات الاتصال الفعلي</string>
+    <string name="vpn_ip_title">عنوان الـ IP</string>
+    <string name="vpn_ping_title">سرعة الاستجابة</string>
+    <string name="vpn_data_title">بيانات مشفرة</string>
+    <string name="vpn_select_server">اختر خادم التشفير الجغرافي</string>
+    <string name="vpn_error_not_supported">عذراً، جهازك لا يدعم ميزة البروكسي (WebView قديم).</string>
+    <string name="vpn_error_invalid_server">عنوان الخادم أو المنفذ غير صالح: %1$s:%2$s</string>
+    <string name="vpn_error_invalid_generic">خادم غير صالح: %1$s:%2$s</string>
+    <string name="vpn_error_proxy_not_supported">البروكسي غير مدعوم على هذا الجهاز.</string>
+    <string name="vpn_proxy_failed">فشل في جلب الخوادم الوكيلة، تم استخدام الخوادم الافتراضية</string>
+
+    <!-- AdBlock -->
+    <string name="adblock_title">درع حظر الإعلانات والتعقب</string>
+    <string name="adblock_enabled">الدرع نشط</string>
+    <string name="adblock_disabled">الدرع متوقف</string>
+    <string name="adblock_enable_action">اضغط هنا لتفعيل مانع الإعلانات الذكي</string>
+    <string name="adblock_disable_action">اضغط هنا لتعطيل مانع الإعلانات</string>
+    <string name="adblock_blocked_count">الإعلانات المحجوبة على الصفحة الحالية</string>
+
+    <!-- Downloads -->
+    <string name="downloads_title">مدير التحميلات والملفات</string>
+    <string name="downloads_empty">لا توجد أي تنزيلات حالياً</string>
+    <string name="downloads_empty_desc">سيظهر تفاصيل الملفات، وسرعة تنزيلها، ونسب تقدمها تلقائياً هنا في اللحظة التي تضغط فيها على محتوى تنزيل بمواقع الويب!</string>
+    <string name="download_connecting">جاري الاتصال…</string>
+    <string name="download_paused">موقف مؤقتاً</string>
+    <string name="download_resuming">جاري الاستئناف…</string>
+    <string name="download_canceled">ملغى</string>
+    <string name="download_completed">مكتمل</string>
+    <string name="download_completed_warning">مكتمل مع تحذير</string>
+    <string name="download_failed">فشل: %s</string>
+    <string name="download_file_default">download_file</string>
+
+    <!-- History / Bookmarks -->
+    <string name="history_title">السجل</string>
+    <string name="bookmarks_title">المفضلة</string>
+    <string name="saved_pages_title">المحفوظة أوفلاين</string>
+    <string name="history_empty">سجل تصفحك خالٍ</string>
+    <string name="bookmarks_empty">مفضلتك فارغة حالياً</string>
+    <string name="saved_pages_empty">لا توجد صفحات محفوظة</string>
+    <string name="history_clear_all">مسح كامل السجل</string>
+    <string name="saved_pages_clear_all">حذف كافة الصفحات</string>
+    <string name="search_bookmarks_hint">ابحث في مفضلتك…</string>
+    <string name="search_history_hint">ابحث في السجل اليومي…</string>
+    <string name="search_saved_hint">ابحث في الصفحات المحفوظة…</string>
+
+    <!-- Translation -->
+    <string name="translation_title">مساعد الترجمة الذكي</string>
+    <string name="translation_no_key">يرجى تهيئة مفتاح API الخاص بـ Gemini في لوحة الأسرار (Secrets) باسم GEMINI_API_KEY لتفعيل الترجمة الذكية.</string>
+    <string name="translation_error_network">خطأ في الشبكة مبرهناً برمز الخطأ: %d</string>
+    <string name="translation_failed">فشل الترجمة: %s</string>
+    <string name="translation_no_response">عذراً، لم تنجح الاستجابة، يرجى المحاولة لتأكيد النص المدخل.</string>
+    <string name="translation_connect_failed">فشل الاتصال: %s</string>
+
+    <!-- Images / Video -->
+    <string name="images_title">مستعرض ومعرض الصور</string>
+    <string name="video_title">مستخرج ومشغل الفيديو الذكي</string>
+
+    <!-- Errors -->
+    <string name="error_page_load">تعذر تحميل الصفحة: %s</string>
+    <string name="error_http">خطأ HTTP أثناء التحميل: %s</string>
+    <string name="error_ssl">خطأ في شهادة الأمان (SSL)! تم إلغاء التحميل لحمايتك.</string>
+    <string name="error_image_extraction">حدث خطأ أثناء استخراج الصور: %s</string>
+    <string name="error_video_extraction">حدث خطأ أثناء استخراج الفيديو: %s</string>
+    <string name="error_download_start">فشل بدء التحميل: %s</string>
+    <string name="error_page_save_failed">فشل حفظ الصفحة</string>
+    <string name="error_page_save_success">تم حفظ الصفحة بنجاح للقراءة دون إنترنت</string>
+
+    <!-- Accessibility -->
+    <string name="cd_back">الرجوع للخلف</string>
+    <string name="cd_forward">التقدم للأمام</string>
+    <string name="cd_refresh">إعادة تحميل الصفحة</string>
+    <string name="cd_stop">إيقاف التحميل</string>
+    <string name="cd_tabs">قائمة علامات التبويب</string>
+    <string name="cd_history_bookmarks">السجل والمفضلة</string>
+    <string name="cd_secure">اتصال آمن</string>
+    <string name="cd_not_secure">غير آمن</string>
 </resources>

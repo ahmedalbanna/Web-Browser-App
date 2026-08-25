@@ -34,17 +34,30 @@ val vpnServersList = listOf(
 )
 
 @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
-class WebBrowserViewModel(application: Application) : AndroidViewModel(application) {
+class WebBrowserViewModel(
+    application: Application,
+    private val repository: BrowserRepository = run {
+        // Prefer AppContainer if available (DI), else fallback to direct DB (for tests/preview)
+        val app = application as? com.example.BrowserApplication
+        app?.container?.repository ?: BrowserRepository(BrowserDatabase.getDatabase(application).browserDao())
+    }
+) : AndroidViewModel(application) {
 
-    private val repository: BrowserRepository = BrowserRepository(BrowserDatabase.getDatabase(application).browserDao())
     private val activeDownloadJobs = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Job>()
-    private val downloadClient = okhttp3.OkHttpClient.Builder()
-        .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-        .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
-        .followRedirects(true)
-        .followSslRedirects(true)
-        .build()
+    private val downloadClient: okhttp3.OkHttpClient by lazy {
+        (getApplication<Application>() as? com.example.BrowserApplication)?.container?.downloadClient
+            ?: okhttp3.OkHttpClient.Builder()
+                .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .writeTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+                .followRedirects(true)
+                .followSslRedirects(true)
+                .build()
+    }
+    private val translateService: GeminiTranslateService by lazy {
+        (getApplication<Application>() as? com.example.BrowserApplication)?.container?.geminiService
+            ?: GeminiTranslateService()
+    }
 
     val allDownloads: StateFlow<List<DownloadItem>> = repository.allDownloads
         .stateIn(
@@ -167,8 +180,6 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     // AI Translation States
-    private val translateService = GeminiTranslateService()
-
     private val _isTranslating = MutableStateFlow(false)
     val isTranslating: StateFlow<Boolean> = _isTranslating.asStateFlow()
 
@@ -247,6 +258,49 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
     fun clearExtractedVideos() {
         _extractedVideos.value = emptyList()
         _isExtractingVideos.value = false
+    }
+
+    // Consolidated UI state — Milestone 3 v1.2: replaces 12+ scattered StateFlows with single source
+    val uiState: StateFlow<BrowserUiState> = run {
+        @Suppress("UNCHECKED_CAST")
+        val part1 = combine(
+            listOf<Flow<Any?>>(
+                _isIncognito, _isVpnConnected, _selectedVpnServer, _simulatedPing, _simulatedDataUsage,
+                _isAdBlockerEnabled, _blockedAdsCount, _isLoading, _loadingProgress, _isSecure
+            )
+        ) { args: Array<Any?> -> args.toList() }
+        @Suppress("UNCHECKED_CAST")
+        val part2 = combine(
+            listOf<Flow<Any?>>(
+                _canGoBack, _canGoForward, _urlInput, _activeTabId, _errorMessages,
+                _isTranslating, _translatedResult, _translationError, _isExtractingImages, _isExtractingVideos
+            )
+        ) { args: Array<Any?> -> args.toList() }
+        combine(part1, part2) { p1, p2 ->
+            @Suppress("UNCHECKED_CAST")
+            BrowserUiState(
+                isIncognito = p1[0] as Boolean,
+                isVpnConnected = p1[1] as Boolean,
+                selectedVpnServer = p1[2] as VpnServer,
+                simulatedPing = p1[3] as Int,
+                simulatedDataUsage = p1[4] as Float,
+                isAdBlockerEnabled = p1[5] as Boolean,
+                blockedAdsCount = p1[6] as Int,
+                isLoading = p1[7] as Boolean,
+                loadingProgress = p1[8] as Int,
+                isSecure = p1[9] as Boolean,
+                canGoBack = p2[0] as Boolean,
+                canGoForward = p2[1] as Boolean,
+                urlInput = p2[2] as String,
+                activeTabId = p2[3] as String,
+                errorMessage = p2[4] as String?,
+                isTranslating = p2[5] as Boolean,
+                translatedResult = p2[6] as String,
+                translationError = p2[7] as String?,
+                isExtractingImages = p2[8] as Boolean,
+                isExtractingVideos = p2[9] as Boolean
+            )
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), BrowserUiState(activeTabId = _activeTabId.value))
     }
 
     // Saved Pages state and interactions
