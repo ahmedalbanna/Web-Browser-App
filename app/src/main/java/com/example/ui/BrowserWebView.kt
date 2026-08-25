@@ -28,13 +28,33 @@ fun BrowserWebView(
         webViewInstance?.goBack()
     }
 
-    // React to private browsing (Incognito) updates
+    // React to private browsing (Incognito) updates — isolate session
     LaunchedEffect(isIncognito) {
         webViewInstance?.let { webView ->
             if (isIncognito) {
+                // Entering incognito: purge previous session traces before loading
                 webView.clearHistory()
                 webView.clearCache(true)
-                android.webkit.CookieManager.getInstance().removeAllCookies(null)
+                webView.clearFormData()
+                android.webkit.CookieManager.getInstance().apply {
+                    removeAllCookies(null)
+                    flush()
+                }
+                android.webkit.WebStorage.getInstance().deleteAllData()
+                webView.settings.cacheMode = android.webkit.WebSettings.LOAD_NO_CACHE
+                webView.settings.saveFormData = false
+            } else {
+                // Exiting incognito: discard incognito session
+                webView.clearHistory()
+                webView.clearCache(true)
+                webView.clearFormData()
+                android.webkit.CookieManager.getInstance().apply {
+                    removeAllCookies(null)
+                    flush()
+                }
+                android.webkit.WebStorage.getInstance().deleteAllData()
+                webView.settings.cacheMode = android.webkit.WebSettings.LOAD_DEFAULT
+                webView.settings.saveFormData = true
             }
         }
     }

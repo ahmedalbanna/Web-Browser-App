@@ -1,14 +1,16 @@
 package com.example.data
 
 import android.content.Context
+import androidx.room.AutoMigration
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
     entities = [Bookmark::class, HistoryEntry::class, DownloadItem::class, SavedPage::class],
-    version = 3,
-    exportSchema = false
+    version = 4,
+    exportSchema = true,
+    autoMigrations = [AutoMigration(from = 3, to = 4)]
 )
 abstract class BrowserDatabase : RoomDatabase() {
 
@@ -25,7 +27,7 @@ abstract class BrowserDatabase : RoomDatabase() {
                     BrowserDatabase::class.java,
                     "browser_database"
                 )
-                .fallbackToDestructiveMigration()
+                .fallbackToDestructiveMigrationOnDowngrade()
                 .build()
                 INSTANCE = instance
                 instance

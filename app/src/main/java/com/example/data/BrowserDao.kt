@@ -39,6 +39,18 @@ interface BrowserDao {
     @Query("DELETE FROM history_entries")
     suspend fun clearAllHistory()
 
+    @Query("SELECT * FROM history_entries ORDER BY timestamp DESC LIMIT 1")
+    suspend fun getLatestHistoryEntry(): HistoryEntry?
+
+    @Query("SELECT COUNT(*) FROM history_entries")
+    suspend fun getHistoryCount(): Int
+
+    @Query("DELETE FROM history_entries WHERE id IN (SELECT id FROM history_entries ORDER BY timestamp ASC LIMIT :n)")
+    suspend fun deleteOldestHistory(n: Int)
+
+    @Query("UPDATE history_entries SET timestamp = :timestamp, title = :title WHERE id = :id")
+    suspend fun updateHistoryTimestamp(id: Long, title: String, timestamp: Long)
+
     // Download Operations
     @Query("SELECT * FROM downloads ORDER BY timestamp DESC")
     fun getAllDownloads(): Flow<List<DownloadItem>>

@@ -500,58 +500,115 @@ class WebBrowserViewModel(application: Application) : AndroidViewModel(applicati
     }
 
     private var startVpnBytes = 0L
+    private var vpnSwitchJob: kotlinx.coroutines.Job? = null
+    private var isTrafficStatsSupported = true
+
+    private fun isValidIp(ip: String): Boolean {
+        val parts = ip.split(".")
+        if (parts.size != 4) return false
+        return parts.all { p -> p.toIntOrNull()?.let { it in 0..255 } == true }
+    }
+
+    private fun isValidPort(port: String): Boolean {
+        val p = port.toIntOrNull() ?: return false
+        return p in 1..65535
+    }
+
+    private fun isProxySupported(): Boolean {
+        return try {
+            androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.PROXY_OVERRIDE)
+        } catch (_: Exception) { false }
+    }
 
     fun toggleVpn() {
+        if (!isProxySupported()) {
+            showError("عذراً، جهازك لا يدعم ميزة البروكسي (WebView قديم).")
+            return
+        }
+        val server = _selectedVpnServer.value
+        if (!isValidIp(server.ipAddress) || !isValidPort(server.port)) {
+            showError("عنوان الخادم أو المنفذ غير صالح: ${server.ipAddress}:${server.port}")
+            return
+        }
         val isNowConnected = !_isVpnConnected.value
         _isVpnConnected.value = isNowConnected
-        if (isNowConnected) {
-            val server = _selectedVpnServer.value
-            ProxyHelper.applyProxy(server.ipAddress, server.port) {
-                viewModelScope.launch {
-                    _commands.emit(BrowserCommand.Reload)
+        // Debounce rapid toggles
+        vpnSwitchJob?.cancel()
+        vpnSwitchJob = viewModelScope.launch {
+            kotlinx.coroutines.delay(300)
+            if (isNowConnected) {
+                ProxyHelper.applyProxy(server.ipAddress, server.port) {
+                    viewModelScope.launch { _commands.emit(BrowserCommand.Reload) }
                 }
-            }
-            startVpnSimulation()
-        } else {
-            ProxyHelper.clearProxy {
-                viewModelScope.launch {
-                    _commands.emit(BrowserCommand.Reload)
+                startVpnSimulation()
+            } else {
+                ProxyHelper.clearProxy {
+                    viewModelScope.launch { _commands.emit(BrowserCommand.Reload) }
                 }
+                stopVpnSimulation()
             }
-            stopVpnSimulation()
         }
     }
 
     fun setVpnServer(server: VpnServer) {
+        if (!isValidIp(server.ipAddress) || !isValidPort(server.port)) {
+            showError("خادم غير صالح: ${server.ipAddress}:${server.port}")
+            return
+        }
         _selectedVpnServer.value = server
         _simulatedPing.value = server.ping
         
         if (_isVpnConnected.value) {
-            ProxyHelper.applyProxy(server.ipAddress, server.port) {
-                viewModelScope.launch {
-                    _commands.emit(BrowserCommand.Reload)
-                }
+            if (!isProxySupported()) {
+                showError("البروكسي غير مدعوم على هذا الجهاز.")
+                return
             }
-            stopVpnSimulation()
-            startVpnSimulation()
+            vpnSwitchJob?.cancel()
+            vpnSwitchJob = viewModelScope.launch {
+                kotlinx.coroutines.delay(300)
+                ProxyHelper.applyProxy(server.ipAddress, server.port) {
+                    viewModelScope.launch { _commands.emit(BrowserCommand.Reload) }
+                }
+                stopVpnSimulation()
+                startVpnSimulation()
+            }
         }
     }
 
     private fun startVpnSimulation() {
         vpnJob?.cancel()
         val uid = android.os.Process.myUid()
-        startVpnBytes = android.net.TrafficStats.getUidRxBytes(uid) + android.net.TrafficStats.getUidTxBytes(uid)
+        val rx = android.net.TrafficStats.getUidRxBytes(uid)
+        val tx = android.net.TrafficStats.getUidTxBytes(uid)
+        isTrafficStatsSupported = rx != android.net.TrafficStats.UNSUPPORTED.toLong() && tx != android.net.TrafficStats.UNSUPPORTED.toLong()
+        startVpnBytes = if (isTrafficStatsSupported) rx + tx else 0L
+        // reset usage on new connection
+        _simulatedDataUsage.value = 0f
         
         vpnJob = viewModelScope.launch {
             val currentServer = _selectedVpnServer.value
             while (true) {
                 kotlinx.coroutines.delay(1000)
-                val currentBytes = android.net.TrafficStats.getUidRxBytes(uid) + android.net.TrafficStats.getUidTxBytes(uid)
-                val diff = (currentBytes - startVpnBytes).coerceAtLeast(0L)
-                // Default minimum simulated usage to show it's active even without much browsing
-                val fallbackUsage = _simulatedDataUsage.value + ((5..65).random() / 1000f)
-                val actualUsageMb = diff / (1024f * 1024f)
-                _simulatedDataUsage.value = if (actualUsageMb > 0f) actualUsageMb else fallbackUsage
+                if (isTrafficStatsSupported) {
+                    val curRx = android.net.TrafficStats.getUidRxBytes(uid)
+                    val curTx = android.net.TrafficStats.getUidTxBytes(uid)
+                    if (curRx != android.net.TrafficStats.UNSUPPORTED.toLong() && curTx != android.net.TrafficStats.UNSUPPORTED.toLong()) {
+                        val currentBytes = curRx + curTx
+                        val diff = (currentBytes - startVpnBytes).coerceAtLeast(0L)
+                        val actualUsageMb = diff / (1024f * 1024f)
+                        if (actualUsageMb > 0f) {
+                            _simulatedDataUsage.value = actualUsageMb
+                        } else {
+                            // fallback small increment to show activity
+                            _simulatedDataUsage.value += ((5..15).random() / 1000f)
+                        }
+                    } else {
+                        _simulatedDataUsage.value += ((5..15).random() / 1000f)
+                    }
+                } else {
+                    // Device does not support TrafficStats — simulated only
+                    _simulatedDataUsage.value += ((5..15).random() / 1000f)
+                }
                 
                 val fluctuation = (-3..3).random()
                 _simulatedPing.value = (currentServer.ping + fluctuation).coerceAtLeast(4)

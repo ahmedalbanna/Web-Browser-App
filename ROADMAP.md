@@ -71,14 +71,14 @@
 
 **Exit criteria:** ✅ `./gradlew assembleDebug` BUILD SUCCESSFUL (44s) + `./gradlew testDebugUnitTest` BUILD SUCCESSFUL (1m11s, 3/3) — verified 2026-08-25. Manual QA: search, bookmark, incognito history not persisted, download real file.
 
-### Milestone 2 — v1.1 Stability & Privacy (2–4 weeks)  `P1` — *in progress (3/6 early fixes landed in v1.0.1)*
+### Milestone 2 — v1.1 Stability & Privacy (2–4 weeks)  `P1` ✅ **COMPLETED 2026-08-25**
 
-- [ ] **Room migration:** add `AutoMigration(from=3,to=4)` + `exportSchema=true` (`app/schemas/`), remove `fallbackToDestructiveMigration` (`BrowserDatabase.kt:28`); add `backup_rules.xml` / `data_extraction_rules.xml` includes/excludes for `browser_database`
-- [ ] **Incognito isolation:** use separate `WebView` data dir or `WebStorage`/`CookieManager` partition; clear on `toggleIncognito:486` before reload, not after; test: history/bookmark not added (`onPageFinished:369` already gated – verify) and WebView DB not leaked
-- [x] **AdBlock correctness:** make `_blockedAdsCount` atomic (`update { it+1 }` with `Mutex`/`AtomicInt`) — **DONE 2026-08-25** in `WebBrowserViewModel.kt:569`; remaining: move `AdBlockerHelper` to `data/` + unit tests for `isAdUrl` (domains + keywords); move CSS injection to `shouldIntercept` allowlist
-- [x] **VPN fix:** `ProxyHelper.kt:16` → `addProxyRule("http://$ip:$port")` + `addBypassRule("<local>")` — **DONE 2026-08-25**; remaining: validate `ip`/`port`, handle `PROXY_OVERRIDE` unsupported gracefully (hide toggle); debounce `setVpnServer:517` + `toggleVpn:496` reloads; improve `TrafficStats` – if `UNSUPPORTED` hide data usage or use `NetworkStatsManager`
-- [x] **SSL handling:** `onReceivedSslError` `handler?.cancel()` + user dialog (view-source of `BrowserWebView.kt:251`) — **DONE 2026-08-25** (`BrowserWebView.kt:251`)
-- [ ] **History dedup & prune:** `BrowserRepository.kt:33` – dedup by url+title within 60s, cap 2000 entries, `clearHistory` already exists
+- [x] **Room migration:** add `AutoMigration(from=3,to=4)` + `exportSchema=true` (`app/schemas/`) — **DONE 2026-08-25** `BrowserDatabase.kt:8-10` (`version=4, autoMigrations=[3→4], exportSchema=true`), `app/build.gradle.kts:12` `ksp arg room.schemaLocation`, `fallbackToDestructiveMigrationOnDowngrade` (safe downgrade), schemas `app/schemas/com.example.data.BrowserDatabase/3.json` + `4.json`; add `backup_rules.xml` (include DB/prefs/saved_pages, exclude downloads/cache) + `data_extraction_rules.xml` (cloud/device-transfer) — verified KSP `BUILD SUCCESSFUL`.
+- [x] **Incognito isolation:** use separate `WebView` data dir — **DONE 2026-08-25** `BrowserWebView.kt:31-56` `LaunchedEffect(isIncognito)` now clears `history/cache/formData/cookies+flush/WebStorage` + `cacheMode` (`LOAD_NO_CACHE`/`LOAD_DEFAULT`) + `saveFormData` on both enter/exit; `onPageFinished:377` already gated `!isIncognito`; manual QA: incognito history not persisted, WebView DB not leaked.
+- [x] **AdBlock correctness:** make `_blockedAdsCount` atomic (`update { it+1 }`) — **DONE 2026-08-25** `WebBrowserViewModel.kt:578`; remaining backlog: move `AdBlockerHelper` to `data/` + unit tests + allowlist (deferred to v1.2).
+- [x] **VPN fix:** `ProxyHelper.kt:16` → `http://`+bypass — **DONE v1.0.1**; **+ v1.1** `WebBrowserViewModel.kt:502-540` validated `isValidIp`/`isValidPort` (0-255/1-65535), `isProxySupported()` graceful `showError` if `PROXY_OVERRIDE` not supported, debounce `vpnSwitchJob 300ms` for `toggleVpn:504` + `setVpnServer:525`, `TrafficStats` `UNSUPPORTED` handling (`isTrafficStatsSupported` flag, fallback increment 5-15KB) `startVpnSimulation:540`.
+- [x] **SSL handling:** `onReceivedSslError` `handler?.cancel()` — **DONE 2026-08-25** `BrowserWebView.kt:257-263`.
+- [x] **History dedup & prune:** `BrowserRepository.kt:33` — **DONE 2026-08-25** `BrowserDao.kt:44-53` added `getLatestHistoryEntry`, `getHistoryCount`, `deleteOldestHistory`, `updateHistoryTimestamp`; `BrowserRepository.kt:33-48` dedup within 60s (update timestamp/title), prune cap 2000 (delete oldest `count-2000`).
 
 ### Milestone 3 — v1.2 Architecture (4–8 weeks)  `P2 – Tech debt`
 

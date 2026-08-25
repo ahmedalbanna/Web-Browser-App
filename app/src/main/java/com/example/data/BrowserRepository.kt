@@ -32,8 +32,20 @@ class BrowserRepository(private val browserDao: BrowserDao) {
 
     suspend fun addHistoryEntry(title: String, url: String) {
         val cleanUrl = url.trim()
-        if (cleanUrl.isNotEmpty() && !cleanUrl.startsWith("about:blank")) {
-            browserDao.insertHistory(HistoryEntry(title = title.ifEmpty { url }, url = cleanUrl))
+        if (cleanUrl.isEmpty() || cleanUrl.startsWith("about:blank")) return
+        val now = System.currentTimeMillis()
+        val cleanTitle = title.ifEmpty { url }
+        // Dedup within 60s: same URL as latest → update timestamp/title instead of insert
+        val latest = browserDao.getLatestHistoryEntry()
+        if (latest != null && latest.url == cleanUrl && (now - latest.timestamp) < 60_000) {
+            browserDao.updateHistoryTimestamp(latest.id, cleanTitle, now)
+            return
+        }
+        browserDao.insertHistory(HistoryEntry(title = cleanTitle, url = cleanUrl, timestamp = now))
+        // Prune cap 2000
+        val count = browserDao.getHistoryCount()
+        if (count > 2000) {
+            browserDao.deleteOldestHistory(count - 2000)
         }
     }
 
